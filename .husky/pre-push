@@ -1,0 +1,31 @@
+#!/bin/sh
+echo "🔒 Running final security checks before push..."
+
+# Check if gitleaks is installed
+if command -v gitleaks > /dev/null 2>&1; then
+  echo "🔍 Running comprehensive Gitleaks scan on outgoing commits..."
+  # Detect secrets in waiting-to-be-pushed commits
+  gitleaks detect --verbose --log-opts="origin/main..HEAD"
+  GITLEAKS_EXIT=$?
+
+  if [ $GITLEAKS_EXIT -ne 0 ]; then
+    echo "❌ Gitleaks found secrets in your commits!"
+    echo "   Please review and remove secrets before pushing."
+    echo "   To skip this check (NOT RECOMMENDED): git push --no-verify"
+    exit 1
+  fi
+  echo "✅ Gitleaks comprehensive scan passed"
+else
+  echo "⚠️  Gitleaks not installed - skipping comprehensive scan"
+  if [ -f "c:\Program Files\winget\winget.exe" ]; then
+     echo "   Install with: winget install gitleaks"
+  else
+     echo "   Install Gitleaks: https://github.com/gitleaks/gitleaks"
+  fi
+  echo "   Basic checks were performed during commit."
+fi
+
+echo "✅ Pre-push security checks completed"
+
+# Run existing Build task
+npm run build
