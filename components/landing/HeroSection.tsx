@@ -23,7 +23,7 @@ export function HeroSection() {
             <div className="flex flex-col sm:flex-row gap-4">
               <Button asChild size="lg" className="h-12 px-8 text-base shadow-lg hover:shadow-xl transition-all">
                 <Link href="/login">
-                  Log In <ArrowRight className="ml-2 h-4 w-4" />
+                  Enter <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
               <Button asChild variant="outline" size="lg" className="h-12 px-8 text-base">
