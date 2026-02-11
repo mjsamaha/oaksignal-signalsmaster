@@ -1,19 +1,17 @@
+"use client"
+
 import Link from "next/link"
-import { Bell, Search, Menu, User } from "lucide-react"
+import { Bell } from "lucide-react"
+import { UserButton } from "@clerk/nextjs"
+import { useQuery } from "convex/react"
+import { api } from "@/convex/_generated/api"
 
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { CURRENT_USER } from "@/lib/mock-data"
 import { ModeToggle } from "@/components/mode-toggle"
 
 export function DashboardHeader() {
+  const user = useQuery(api.users.getCurrentUser);
+
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center gap-4 border-b bg-background px-6">
       <div className="flex items-center gap-2 font-bold text-xl tracking-tight text-primary">
@@ -43,28 +41,19 @@ export function DashboardHeader() {
           <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-destructive" />
           <span className="sr-only">Notifications</span>
         </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-9 w-9 rounded-full border bg-muted">
-              <span className="font-semibold text-xs">{CURRENT_USER.avatarUrl}</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>
-              <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">{CURRENT_USER.name}</p>
-                <p className="text-xs leading-none text-muted-foreground">{CURRENT_USER.rankTitle}</p>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>Profile</DropdownMenuItem>
-            <DropdownMenuItem>Settings</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive focus:text-destructive">
-              Log out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        
+        {/* User Info from Convex + Clerk UserButton */}
+        <div className="flex items-center gap-3 pl-2 border-l ml-2">
+          {user && (
+            <div className="hidden md:flex flex-col items-end mr-1">
+              <span className="text-sm font-medium leading-none">{user.name}</span>
+              <span className="text-xs text-muted-foreground uppercase tracking-wider">
+                {user.role}
+              </span>
+            </div>
+          )}
+          <UserButton afterSignOutUrl="/" />
+        </div>
       </div>
     </header>
   )

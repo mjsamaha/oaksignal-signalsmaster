@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Anchor, Menu, X } from "lucide-react";
@@ -64,9 +65,26 @@ export function SiteHeader() {
         {/* Desktop Auth Buttons */}
         <div className="hidden md:flex items-center gap-4">
           <ModeToggle />
-          <Button asChild>
-            <Link href="/login">Log In</Link>
-          </Button>
+          <SignedOut>
+            <SignInButton mode="modal">
+              <Button variant="ghost" size="sm">
+                Log In
+              </Button>
+            </SignInButton>
+            <SignUpButton mode="modal">
+              <Button size="sm">
+                Sign Up
+              </Button>
+            </SignUpButton>
+          </SignedOut>
+          <SignedIn>
+            <Link href="/dashboard">
+              <Button variant="ghost" size="sm">
+                Dashboard
+              </Button>
+            </Link>
+            <UserButton />
+          </SignedIn>
         </div>
 
         {/* Mobile Menu Toggle */}
@@ -104,9 +122,28 @@ export function SiteHeader() {
                 <ModeToggle />
               </div>
               <div className="h-px bg-border my-2" />
-              <Button className="w-full" asChild>
-                <Link href="/login">Log In</Link>
-              </Button>
+              <SignedOut>
+                <SignInButton mode="modal">
+                  <Button className="w-full" variant="secondary">
+                    Log In
+                  </Button>
+                </SignInButton>
+                <SignUpButton mode="modal">
+                  <Button className="w-full mt-2">
+                    Sign Up
+                  </Button>
+                </SignUpButton>
+              </SignedOut>
+              <SignedIn>
+                <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+                  <Button className="w-full mb-2">
+                    Dashboard
+                  </Button>
+                </Link>
+                <div className="flex items-center justify-center py-2">
+                  <UserButton />
+                </div>
+              </SignedIn>
             </nav>
           </motion.div>
         )}
