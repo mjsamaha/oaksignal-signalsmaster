@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import Image from "next/image"
 import { Doc } from "@/convex/_generated/dataModel"
 import { Swiper as SwiperType } from "swiper"
@@ -168,10 +169,16 @@ export function FlagCarousel({ flags: initialFlags }: FlagCarouselProps) {
                       </div>
 
                       {flag.tips && (
-                          <div className="pt-2 mt-auto">&quot;{flag.tips}&quot;
+                          <div className="pt-2">
                              <p className="text-sm text-muted-foreground italic">&quot;{flag.tips}&quot;</p>
                           </div>
                       )}
+
+                      <div className="pt-4 mt-auto w-full">
+                        <Button variant="secondary" className="w-full" asChild>
+                             <Link href={`/dashboard/reference/flags/${flag.key}`}>View Details</Link>
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
               </div>
