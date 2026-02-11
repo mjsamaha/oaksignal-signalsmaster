@@ -2,17 +2,20 @@
 
 import { useState, useMemo } from "react"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search } from "lucide-react"
+import { Search, LayoutGrid, GalleryHorizontal } from "lucide-react"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { FlagGrid } from "./flag-grid"
+import { FlagCarousel } from "./flag-carousel"
 import { ReferenceStats } from "./reference-stats"
 import { Doc } from "@/convex/_generated/dataModel"
 
 export function ReferenceClient() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
+  const [viewMode, setViewMode] = useState<"grid" | "carousel">("grid")
   
   const flags = useQuery(api.flags.getAllFlags)
   const isLoading = flags === undefined
@@ -57,15 +60,40 @@ export function ReferenceClient() {
           </TabsList>
         </Tabs>
 
-        <div className="relative w-full md:w-72">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search by name, meaning..."
-            className="pl-9"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+        <div className="flex gap-2 w-full md:w-auto">
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Search by name, meaning..."
+              className="pl-9"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          
+          <div className="flex items-center border rounded-md p-1 h-10 bg-background">
+            <Button
+              variant={viewMode === "grid" ? "secondary" : "ghost"}
+              size="icon"
+              className="h-8 w-8 rounded-sm"
+              onClick={() => setViewMode("grid")}
+              title="Grid View"
+            >
+              <LayoutGrid className="h-4 w-4" />
+              <span className="sr-only">Grid View</span>
+            </Button>
+            <Button
+              variant={viewMode === "carousel" ? "secondary" : "ghost"}
+              size="icon"
+              className="h-8 w-8 rounded-sm"
+              onClick={() => setViewMode("carousel")}
+              title="Carousel View"
+            >
+              <GalleryHorizontal className="h-4 w-4" />
+              <span className="sr-only">Carousel View</span>
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -73,7 +101,20 @@ export function ReferenceClient() {
         {!isLoading && (
             <ReferenceStats flags={filteredFlags} category={selectedCategory} />
         )}
-        <FlagGrid flags={filteredFlags} isLoading={isLoading} />
+        
+        {viewMode === "grid" ? (
+          <FlagGrid flags={filteredFlags} isLoading={isLoading} />
+        ) : (
+          <div className="mt-8">
+            {isLoading ? (
+               <div className="h-64 flex items-center justify-center">
+                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+               </div>
+            ) : (
+               <FlagCarousel flags={filteredFlags} />
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
