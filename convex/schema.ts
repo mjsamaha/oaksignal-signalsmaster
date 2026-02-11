@@ -13,4 +13,46 @@ export default defineSchema({
   })
   .index("by_clerkId", ["clerkId"])
   .index("by_email", ["email"]),
+
+  // New Flags Table
+  flags: defineTable({
+    // Unique identifier (e.g., 'alpha', 'one')
+    key: v.string(),
+    
+    // Categorization
+    type: v.union(
+      v.literal("flag-letter"),
+      v.literal("flag-number"),
+      v.literal("pennant-number"),
+      v.literal("special-pennant"),
+      v.literal("substitute")
+    ),
+    category: v.string(), // e.g., 'letters', 'numbers' - helpful for broad grouping
+    
+    // Core Data
+    name: v.string(),     // e.g., 'Alpha'
+    meaning: v.string(),  // e.g., 'Diver Down'
+    description: v.string(), // Expanded description 
+    
+    // Visuals & Identification
+    imagePath: v.string(), // e.g., '/signals/flags/flag-letters/alpha.svg'
+    colors: v.array(v.string()), // ['white', 'blue']
+    pattern: v.optional(v.string()), // 'vertical-split', etc.
+    tips: v.optional(v.string()), // 'Vertical white and blue halves'
+    
+    // Metadata
+    phonetic: v.optional(v.string()), // 'Alfa'
+    difficulty: v.optional(v.union(
+      v.literal("beginner"), 
+      v.literal("intermediate"), 
+      v.literal("advanced")
+    )),
+    
+    // Ordering for lists
+    order: v.number(), 
+  })
+  .index("by_key", ["key"])           // Fast lookup by ID
+  .index("by_type", ["type"])         // Filter by specific type
+  .index("by_category", ["category"]) // Filter by broad category
+  .index("by_order", ["order"]),      // Get flags in correct sequence
 });

@@ -8,6 +8,11 @@
  * @module
  */
 
+import type * as flags from "../flags.js";
+import type * as seed_letters from "../seed/letters.js";
+import type * as seed_numbers from "../seed/numbers.js";
+import type * as seed_special from "../seed/special.js";
+import type * as seed_flags from "../seed_flags.js";
 import type * as users from "../users.js";
 
 import type {
@@ -17,6 +22,11 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  flags: typeof flags;
+  "seed/letters": typeof seed_letters;
+  "seed/numbers": typeof seed_numbers;
+  "seed/special": typeof seed_special;
+  seed_flags: typeof seed_flags;
   users: typeof users;
 }>;
 
