@@ -4,6 +4,7 @@ import {
   Trophy, 
   Flag 
 } from "lucide-react"
+import Link from "next/link"
 
 import { StatsOverview } from "@/components/dashboard/stats-overview"
 import { ModuleCard } from "@/components/dashboard/module-card"
@@ -25,7 +26,9 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center space-x-2">
-          <Button>Quick Start Practice</Button>
+          <Button asChild>
+            <Link href="/dashboard/practice">Quick Start Practice</Link>
+          </Button>
         </div>
       </div>
 

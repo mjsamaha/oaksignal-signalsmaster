@@ -55,4 +55,24 @@ export default defineSchema({
   .index("by_type", ["type"])         // Filter by specific type
   .index("by_category", ["category"]) // Filter by broad category
   .index("by_order", ["order"]),      // Get flags in correct sequence
+
+  // Practice Sessions Table
+  practiceSessions: defineTable({
+    userId: v.id("users"),
+    mode: v.union(v.literal("learn"), v.literal("match")),
+    sessionLength: v.number(),
+    flagIds: v.array(v.id("flags")),
+    currentIndex: v.number(),
+    score: v.number(),
+    status: v.union(
+      v.literal("active"),
+      v.literal("completed"),
+      v.literal("abandoned")
+    ),
+    startedAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+  .index("by_user", ["userId"])
+  .index("by_user_status", ["userId", "status"])
+  .index("by_status", ["status"]),
 });

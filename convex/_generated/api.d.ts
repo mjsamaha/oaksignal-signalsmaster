@@ -9,6 +9,7 @@
  */
 
 import type * as flags from "../flags.js";
+import type * as practice_sessions from "../practice_sessions.js";
 import type * as seed_letters from "../seed/letters.js";
 import type * as seed_numbers from "../seed/numbers.js";
 import type * as seed_reset from "../seed/reset.js";
@@ -24,6 +25,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   flags: typeof flags;
+  practice_sessions: typeof practice_sessions;
   "seed/letters": typeof seed_letters;
   "seed/numbers": typeof seed_numbers;
   "seed/reset": typeof seed_reset;
