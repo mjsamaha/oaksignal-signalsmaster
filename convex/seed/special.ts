@@ -17,21 +17,6 @@ export const SPECIAL_PENNANTS: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     order: 1
   },
   {
-    key: "code",
-    name: "Code Flag",
-    type: "special-pennant",
-    category: "special",
-    meaning: "Use International Code of Signals.",
-    description: "Vertical stripes: Red, White, Red, White, Red (Same as Answering).",
-    phonetic: "Code",
-    tips: "Same as Answering Pennant.",
-    colors: ["red", "white"],
-    pattern: "vertical-stripes",
-    imagePath: "/flags/special-pennants/answer.svg",
-    difficulty: "beginner",
-    order: 2
-  },
-  {
     key: "corpen",
     name: "Corpen",
     type: "special-pennant",

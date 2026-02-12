@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import Image from "next/image"
 
 import Link from "next/link"
-// This component is used in the flags index page and the flag detail page. It displays a card with the flag's image, name, and phonetic (if available). It also has a badge for special pennants and substitutes.
+// This component used in the flags index page and the flag detail page. It displays a card with the flag's image, name, and phonetic (if available). It also has a badge for special pennants and substitutes.
 interface FlagCardProps {
   flag: Doc<"flags">
 }
