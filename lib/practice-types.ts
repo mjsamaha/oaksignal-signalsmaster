@@ -1,5 +1,6 @@
 import { Id } from "@/convex/_generated/dataModel";
 import { PracticeMode, SessionLength, SessionStatus } from "./practice-constants";
+import type { FlagDetails, SimilarFlagData, AnswerFeedbackContext } from "./feedback-types";
 
 /**
  * Question Type - matches practice mode
@@ -197,3 +198,40 @@ export interface CurrentQuestionData {
   totalQuestions: number;
   progress: SessionProgress;
 }
+/**
+ * Extended Answer Submission Result with Flag Details
+ * Enhanced response from submitAnswer mutation including flag data for modal
+ */
+export interface ExtendedAnswerResult extends AnswerResult {
+  flagDetails?: FlagDetails;          // Complete flag data for feedback modal
+  similarFlags?: SimilarFlagData[];   // Related/confusable flags
+}
+
+/**
+ * Feedback Modal State Management
+ * Tracks modal visibility, timing, and interaction state
+ */
+export interface FeedbackModalState {
+  isOpen: boolean;                    // Modal visibility
+  feedbackContext: AnswerFeedbackContext | null; // Answer result data
+  flagDetails: FlagDetails | null;    // Current flag being displayed
+  similarFlags: SimilarFlagData[];    // Confusable flags
+  displayStartTime: number | null;    // Timestamp when modal opened
+  canDismiss: boolean;                // True after minimum display time elapsed
+  isNavigating: boolean;              // True during transition to next question
+}
+
+/**
+ * Feedback Modal Actions
+ * User interactions with feedback modal
+ */
+export interface FeedbackModalActions {
+  onNext: () => void;                 // Advance to next question
+  onViewResults: () => void;          // View final results (last question)
+  onDismiss: () => void;              // Close modal
+  onLearnMore: (flagKey: string) => void; // Navigate to flag reference
+  onReportIssue?: (flagId: Id<"flags">) => void; // Report problem (future)
+}
+
+// Re-export feedback types for convenience
+export type { FlagDetails, SimilarFlagData, AnswerFeedbackContext } from "./feedback-types";

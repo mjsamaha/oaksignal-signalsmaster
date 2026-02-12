@@ -734,8 +734,93 @@ export const submitAnswer = mutation({
 
     await ctx.db.patch(args.sessionId, updateData);
 
-    // 15. RETURN RESULT
+    // 15. FETCH FLAG DETAILS FOR FEEDBACK MODAL
+    const flag = await ctx.db.get(currentQuestion.flagId);
+    if (!flag) {
+      throw new Error("Flag not found for current question");
+    }
+
+    // 16. FETCH SIMILAR FLAGS (for "confusable flags" section)
+    const similarFlagsData = await ctx.db
+      .query("flags")
+      .withIndex("by_order")
+      .collect();
+
+    // Filter out the current flag
+    const otherFlags = similarFlagsData.filter(f => f._id !== currentQuestion.flagId);
+
+    // Calculate similarity scores
+    const flagsWithScores = otherFlags.map(otherFlag => {
+      let similarityScore = 0;
+
+      // Same type flags are more likely to be confused
+      if (otherFlag.type === flag.type) {
+        similarityScore += 3;
+      }
+
+      // Same category is another strong similarity indicator
+      if (otherFlag.category === flag.category) {
+        similarityScore += 2;
+      }
+
+      // Count shared colors
+      const sharedColors = otherFlag.colors.filter(color => 
+        flag.colors.includes(color)
+      ).length;
+      similarityScore += sharedColors * 2;
+
+      // Same pattern is highly confusable
+      if (otherFlag.pattern && flag.pattern && otherFlag.pattern === flag.pattern) {
+        similarityScore += 4;
+      }
+
+      // Similar difficulty level
+      if (otherFlag.difficulty === flag.difficulty) {
+        similarityScore += 1;
+      }
+
+      return {
+        flag: otherFlag,
+        similarityScore,
+      };
+    });
+
+    // Get top 3-4 most similar flags
+    const similarFlags = flagsWithScores
+      .filter(item => item.similarityScore > 0)
+      .sort((a, b) => b.similarityScore - a.similarityScore)
+      .slice(0, 4)
+      .map(item => ({
+        _id: item.flag._id,
+        key: item.flag.key,
+        name: item.flag.name,
+        imagePath: item.flag.imagePath,
+        matchReason: item.similarityScore >= 5 
+          ? "Similar colors and pattern" 
+          : item.similarityScore >= 3 
+          ? "Same type" 
+          : "Similar appearance",
+      }));
+
+    // 17. GET ANSWER LABELS
+    const userAnswerOption = currentQuestion.options.find(
+      opt => opt.id === args.selectedAnswer
+    );
+    const correctAnswerOption = currentQuestion.options.find(
+      opt => opt.id === currentQuestion.correctAnswer
+    );
+
+    // Determine label based on question type
+    const userAnswerLabel = userAnswerOption
+      ? (session.mode === "match" ? userAnswerOption.value : userAnswerOption.label)
+      : "Unknown";
+    const correctAnswerLabel = correctAnswerOption
+      ? (session.mode === "match" ? correctAnswerOption.value : correctAnswerOption.label)
+      : flag.name;
+
+    // 18. RETURN EXTENDED RESULT
     return {
+      // Existing fields
       isCorrect,
       correctAnswer: currentQuestion.correctAnswer,
       currentStreak,
@@ -743,6 +828,27 @@ export const submitAnswer = mutation({
       correctCount: newCorrectCount,
       isSessionComplete,
       nextQuestionIndex: isSessionComplete ? undefined : nextQuestionIndex,
+      
+      // New fields for FeedbackModal
+      flag: {
+        _id: flag._id,
+        key: flag.key,
+        type: flag.type,
+        category: flag.category,
+        name: flag.name,
+        meaning: flag.meaning,
+        description: flag.description,
+        imagePath: flag.imagePath,
+        colors: flag.colors,
+        pattern: flag.pattern,
+        tips: flag.tips,
+        phonetic: flag.phonetic,
+        difficulty: flag.difficulty,
+        order: flag.order,
+      },
+      similarFlags,
+      userAnswerLabel,
+      correctAnswerLabel,
     };
   },
 });

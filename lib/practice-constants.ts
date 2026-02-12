@@ -88,3 +88,25 @@ export const CELEBRATION_THRESHOLDS = {
   ACCURACY_TRIGGER: 90,                 // Celebrate if accuracy >= 90%
   PERFECT_SESSION_BONUS: true,          // Extra celebration for 100% accuracy
 } as const;
+/**
+ * Feedback Modal Configuration
+ * Timing and animation constants for instant feedback modals
+ */
+export const FEEDBACK_MODAL_CONFIG = {
+  ANIMATION_DURATION: 300,              // ms for modal fade-in/fade-out animation
+  MIN_DISPLAY_DURATION: 1500,           // ms minimum time to display feedback (prevent accidental skips)
+  AUTO_ADVANCE_DURATION: 0,             // ms to auto-advance (0 = disabled, requires user action)
+  SIMILAR_FLAGS_LIMIT: 3,               // Number of similar flags to show
+  KEYBOARD_SHORTCUTS: {
+    NEXT: ['Enter', 'Space'],           // Keys to advance to next question
+    CLOSE: ['Escape'],                  // Keys to close modal (if dismissible)
+  },
+} as const;
+
+/**
+ * Streak Milestone Thresholds
+ * Define when to show special celebrations for consecutive correct answers
+ */
+export const STREAK_MILESTONES = [5, 10, 15, 20] as const;
+
+export type StreakMilestone = typeof STREAK_MILESTONES[number];
