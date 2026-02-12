@@ -122,21 +122,6 @@ export const SPECIAL_PENNANTS: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     order: 13
   },
   {
-    key: "guide",
-    name: "Guide",
-    type: "special-pennant",
-    category: "special",
-    meaning: "I am Guide Ship.",
-    description: "Pennant.",
-    phonetic: "Guide",
-    tips: "Guide ship indicator.",
-    colors: ["red", "white"],
-    pattern: "misc",
-    imagePath: "/flags/special-pennants/guide.svg",
-    difficulty: "advanced",
-    order: 14
-  },
-  {
     key: "interrogative",
     name: "Interrogative",
     type: "special-pennant",

@@ -94,7 +94,7 @@ export const ALPHABET_FLAGS = [
     name: "Golf",
     type: "flag-letter",
     category: "letters",
-    meaning: "Guide Flag.",
+    meaning: "I am Guide Ship.",
     description: "Vertical stripes: Yellow, Blue, Yellow, Blue, Yellow, Blue.",
     phonetic: "Golf",
     tips: "G = Gridiron (looks like stripes on a field).",
