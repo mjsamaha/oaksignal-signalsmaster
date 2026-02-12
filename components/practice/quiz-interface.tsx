@@ -6,6 +6,7 @@
  * Integrates all quiz components and manages the complete flow
  */
 
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
@@ -19,7 +20,7 @@ import { StreakIndicator } from "./streak-indicator"
 import { FlagDisplay } from "./flag-display"
 import { MultipleChoiceOptions } from "./multiple-choice-options"
 import { SubmitButton } from "./submit-button"
-import { AnswerFeedback } from "./answer-feedback"
+import { FeedbackModal } from "./feedback-modal"
 import { CelebrationAnimation, PerfectScoreCelebration } from "./celebration-animation"
 import { QuizLoadingState } from "./quiz-loading-state"
 import { QuizErrorBoundary } from "./quiz-error-boundary"
@@ -31,6 +32,7 @@ import { AlertCircle, ArrowLeft, Trophy } from "lucide-react"
 import { useQuizState } from "@/hooks/use-quiz-state"
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts"
 import { shouldCelebrate } from "@/lib/quiz-utils"
+import type { FlagDetails, SimilarFlagData, AnswerFeedbackContext } from "@/lib/feedback-types"
 import Link from "next/link"
 
 interface QuizInterfaceProps {
@@ -46,6 +48,16 @@ function QuizInterfaceContent({ sessionId }: QuizInterfaceProps) {
   
   // Mutations
   const submitAnswerMutation = useMutation(api.practice_sessions.submitAnswer)
+
+  // Feedback modal state
+  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false)
+  const [feedbackData, setFeedbackData] = useState<{
+    context: AnswerFeedbackContext
+    flag: FlagDetails
+    similarFlags: SimilarFlagData[]
+    userAnswerLabel: string
+    correctAnswerLabel: string
+  } | null>(null)
 
   // Quiz state management
   const quizState = useQuizState({
@@ -68,12 +80,26 @@ function QuizInterfaceContent({ sessionId }: QuizInterfaceProps) {
           result.currentStreak
         )
 
-        // Check if session is complete
-        if (result.isSessionComplete) {
-          // Redirect to results page after feedback
-          setTimeout(() => {
-            router.push(`/dashboard/practice`)
-          }, 2500)
+        // Store feedback data and open modal
+        if (result.flag && questionData) {
+          setFeedbackData({
+            context: {
+              isCorrect: result.isCorrect,
+              userAnswer: selectedAnswer,
+              correctAnswer: result.correctAnswer,
+              currentStreak: result.currentStreak,
+              score: result.score,
+              correctCount: result.correctCount,
+              totalQuestions: questionData.totalQuestions,
+              currentQuestionIndex: questionData.questionIndex,
+              isLastQuestion: result.isSessionComplete,
+            },
+            flag: result.flag,
+            similarFlags: result.similarFlags || [],
+            userAnswerLabel: result.userAnswerLabel,
+            correctAnswerLabel: result.correctAnswerLabel,
+          })
+          setFeedbackModalOpen(true)
         }
       } catch (error) {
         console.error("Error submitting answer:", error)
@@ -82,9 +108,22 @@ function QuizInterfaceContent({ sessionId }: QuizInterfaceProps) {
     },
   })
 
+  // Feedback modal handlers
+  const handleNextQuestion = () => {
+    setFeedbackModalOpen(false)
+    setFeedbackData(null)
+    quizState.resetForNextQuestion()
+  }
+
+  const handleViewResults = () => {
+    setFeedbackModalOpen(false)
+    setFeedbackData(null)
+    router.push(`/dashboard/practice`)
+  }
+
   // Keyboard shortcuts
   useKeyboardShortcuts({
-    enabled: !quizState.isAnswered && !quizState.isSubmitting,
+    enabled: !quizState.isAnswered && !quizState.isSubmitting && !feedbackModalOpen,
     hasSelection: !!quizState.selectedAnswer,
     onSelectOption: (index) => {
       if (questionData?.question.options[index]) {
@@ -214,14 +253,23 @@ function QuizInterfaceContent({ sessionId }: QuizInterfaceProps) {
         />
       </div>
 
-      {/* Answer Feedback Overlay */}
-      <AnswerFeedback
-        isVisible={quizState.showFeedback}
-        isCorrect={quizState.isCorrect || false}
-        flagName={flag.name}
-        flagMeaning={flag.meaning}
-        streak={quizState.streak}
-      />
+      {/* Feedback Modal */}
+      {feedbackData && (
+        <FeedbackModal
+          open={feedbackModalOpen}
+          onOpenChange={setFeedbackModalOpen}
+          feedback={feedbackData.context}
+          flag={feedbackData.flag}
+          similarFlags={feedbackData.similarFlags}
+          userAnswerLabel={feedbackData.userAnswerLabel}
+          correctAnswerLabel={feedbackData.correctAnswerLabel}
+          onNext={handleNextQuestion}
+          onViewResults={feedbackData.context.isLastQuestion ? handleViewResults : undefined}
+          showSimilarFlags={true}
+          showMnemonicTips={true}
+          showLearnMoreLink={true}
+        />
+      )}
 
       {/* Celebration Animation */}
       <CelebrationAnimation
