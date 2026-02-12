@@ -10,7 +10,7 @@ export const NUMBER_FLAGS = [
     tips: "Five vertical stripes (Y-R-Y-R-Y).",
     colors: ["yellow", "red"],
     pattern: "vertical-stripes",
-    imagePath: "/flags/flag-numbers/zero.png",
+    imagePath: "/flags/flag-numbers/zero.svg",
     difficulty: "beginner",
     order: 0
   },
@@ -25,7 +25,7 @@ export const NUMBER_FLAGS = [
     tips: "One stripe (red). Looks like the Japanese flag but with a stripe/circle?",
     colors: ["white", "red"],
     pattern: "horizontal-bicolor",
-    imagePath: "/flags/flag-numbers/one.png",
+    imagePath: "/flags/flag-numbers/one.svg",
     difficulty: "beginner",
     order: 1
   },
@@ -40,7 +40,7 @@ export const NUMBER_FLAGS = [
     tips: "Blue background, white circle (like a target).",
     colors: ["blue", "white"],
     pattern: "circle",
-    imagePath: "/flags/flag-numbers/two.png",
+    imagePath: "/flags/flag-numbers/two.svg",
     difficulty: "beginner",
     order: 2
   },
@@ -55,7 +55,7 @@ export const NUMBER_FLAGS = [
     tips: "Three colors (Red, White, Blue). Same as Tango.",
     colors: ["red", "white", "blue"],
     pattern: "vertical-stripes",
-    imagePath: "/flags/flag-numbers/three.png",
+    imagePath: "/flags/flag-numbers/three.svg",
     difficulty: "intermediate",
     order: 3
   },
@@ -70,7 +70,7 @@ export const NUMBER_FLAGS = [
     tips: "Four arms of the cross. Denmark flag.",
     colors: ["red", "white"],
     pattern: "cross",
-    imagePath: "/flags/flag-numbers/four.png",
+    imagePath: "/flags/flag-numbers/four.svg",
     difficulty: "beginner",
     order: 4
   },
@@ -85,7 +85,7 @@ export const NUMBER_FLAGS = [
     tips: "Five fingers, two colors (Yellow/Blue). Same as Kilo?",
     colors: ["yellow", "blue"],
     pattern: "vertical-bicolor",
-    imagePath: "/flags/flag-numbers/five.png",
+    imagePath: "/flags/flag-numbers/five.svg",
     difficulty: "intermediate",
     order: 5
   },
@@ -100,7 +100,7 @@ export const NUMBER_FLAGS = [
     tips: "Top half black, bottom half white.",
     colors: ["black", "white"],
     pattern: "horizontal-bicolor",
-    imagePath: "/flags/flag-numbers/six.png",
+    imagePath: "/flags/flag-numbers/six.svg",
     difficulty: "intermediate",
     order: 6
   },
@@ -115,7 +115,7 @@ export const NUMBER_FLAGS = [
     tips: "Yellow over Red. (Similar to Oscar but horizontal).",
     colors: ["yellow", "red"],
     pattern: "horizontal-bicolor",
-    imagePath: "/flags/flag-numbers/seven.png",
+    imagePath: "/flags/flag-numbers/seven.svg",
     difficulty: "intermediate",
     order: 7
   },
@@ -130,7 +130,7 @@ export const NUMBER_FLAGS = [
     tips: "Same as Victor (Red X on white).",
     colors: ["white", "red"],
     pattern: "saltire",
-    imagePath: "/flags/flag-numbers/eight.png",
+    imagePath: "/flags/flag-numbers/eight.svg",
     difficulty: "intermediate",
     order: 8
   },
@@ -145,7 +145,7 @@ export const NUMBER_FLAGS = [
     tips: "Opposite of Lima? Or similar pattern.",
     colors: ["white", "black"],
     pattern: "quarters",
-    imagePath: "/flags/flag-numbers/niner.png",
+    imagePath: "/flags/flag-numbers/nine.svg",
     difficulty: "intermediate",
     order: 9
   }
@@ -163,7 +163,7 @@ export const PENNANT_NUMBERS = [
     tips: "Japanese flag on a pennant.",
     colors: ["white", "red"],
     pattern: "circle",
-    imagePath: "/flags/pennant-numbers/p1.png",
+    imagePath: "/flags/pennant-numbers/p1.svg",
     difficulty: "beginner",
     order: 1
   },
@@ -178,7 +178,7 @@ export const PENNANT_NUMBERS = [
     tips: "Blue pennant, white circle.",
     colors: ["blue", "white"],
     pattern: "circle",
-    imagePath: "/flags/pennant-numbers/p2.png",
+    imagePath: "/flags/pennant-numbers/p2.svg",
     difficulty: "beginner",
     order: 2
   },
@@ -193,7 +193,7 @@ export const PENNANT_NUMBERS = [
     tips: "French flag on a pennant.",
     colors: ["red", "white", "blue"],
     pattern: "vertical-stripes",
-    imagePath: "/flags/pennant-numbers/p3.png",
+    imagePath: "/flags/pennant-numbers/p3.svg",
     difficulty: "intermediate",
     order: 3
   },
@@ -208,7 +208,7 @@ export const PENNANT_NUMBERS = [
     tips: "Danish flag on a pennant.",
     colors: ["red", "white"],
     pattern: "cross",
-    imagePath: "/flags/pennant-numbers/p4.png",
+    imagePath: "/flags/pennant-numbers/p4.svg",
     difficulty: "beginner",
     order: 4
   },
@@ -223,7 +223,7 @@ export const PENNANT_NUMBERS = [
     tips: "Left yellow, right blue.",
     colors: ["yellow", "blue"],
     pattern: "vertical-bicolor",
-    imagePath: "/flags/pennant-numbers/p5.png",
+    imagePath: "/flags/pennant-numbers/p5.svg",
     difficulty: "intermediate",
     order: 5
   },
@@ -238,7 +238,7 @@ export const PENNANT_NUMBERS = [
     tips: "Top black, bottom white.",
     colors: ["black", "white"],
     pattern: "horizontal-bicolor",
-    imagePath: "/flags/pennant-numbers/p6.png",
+    imagePath: "/flags/pennant-numbers/p6.svg",
     difficulty: "intermediate",
     order: 6
   },
@@ -253,7 +253,7 @@ export const PENNANT_NUMBERS = [
     tips: "Top yellow, bottom red.",
     colors: ["yellow", "red"],
     pattern: "horizontal-bicolor",
-    imagePath: "/flags/pennant-numbers/p7.png",
+    imagePath: "/flags/pennant-numbers/p7.svg",
     difficulty: "intermediate",
     order: 7
   },
@@ -268,7 +268,7 @@ export const PENNANT_NUMBERS = [
     tips: "Red cross on white (like St George's cross).",
     colors: ["white", "red"],
     pattern: "cross",
-    imagePath: "/flags/pennant-numbers/p8.png",
+    imagePath: "/flags/pennant-numbers/p8.svg",
     difficulty: "intermediate",
     order: 8
   },
@@ -283,7 +283,7 @@ export const PENNANT_NUMBERS = [
     tips: "Checkered white and black.",
     colors: ["white", "black"],
     pattern: "quarters",
-    imagePath: "/flags/pennant-numbers/p9.png",
+    imagePath: "/flags/pennant-numbers/p9.svg",
     difficulty: "intermediate",
     order: 9
   },
@@ -298,7 +298,7 @@ export const PENNANT_NUMBERS = [
     tips: "Yellow, Red, Yellow stripes.",
     colors: ["yellow", "red"],
     pattern: "vertical-stripes",
-    imagePath: "/flags/pennant-numbers/p0.png",
+    imagePath: "/flags/pennant-numbers/p0.svg",
     difficulty: "intermediate",
     order: 0
   }

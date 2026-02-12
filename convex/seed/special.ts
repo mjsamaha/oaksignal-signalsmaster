@@ -12,7 +12,7 @@ export const SPECIAL_PENNANTS: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "Candy cane stripes (red/white).",
     colors: ["red", "white"],
     pattern: "vertical-stripes",
-    imagePath: "/flags/special-pennants/answer.png",
+    imagePath: "/flags/special-pennants/answer.svg",
     difficulty: "beginner",
     order: 1
   },
@@ -27,7 +27,7 @@ export const SPECIAL_PENNANTS: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "Same as Answering Pennant.",
     colors: ["red", "white"],
     pattern: "vertical-stripes",
-    imagePath: "/flags/special-pennants/answer.png",
+    imagePath: "/flags/special-pennants/answer.svg",
     difficulty: "beginner",
     order: 2
   },
@@ -42,7 +42,7 @@ export const SPECIAL_PENNANTS: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "Red and white vertical stripes.",
     colors: ["red", "white"],
     pattern: "vertical-stripes",
-    imagePath: "/flags/special-pennants/corpen.png",
+    imagePath: "/flags/special-pennants/corpen.svg",
     difficulty: "advanced",
     order: 3
   },
@@ -57,7 +57,7 @@ export const SPECIAL_PENNANTS: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "White and black vertical stripes.",
     colors: ["white", "black"],
     pattern: "vertical-stripes",
-    imagePath: "/flags/special-pennants/desig.png",
+    imagePath: "/flags/special-pennants/desig.svg",
     difficulty: "advanced",
     order: 4
   },
@@ -72,7 +72,7 @@ export const SPECIAL_PENNANTS: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "Typically red, white, red.",
     colors: ["red", "white"],
     pattern: "vertical-bicolor",
-    imagePath: "/flags/special-pennants/division.png",
+    imagePath: "/flags/special-pennants/division.svg",
     difficulty: "advanced",
     order: 12
   },
@@ -87,9 +87,24 @@ export const SPECIAL_PENNANTS: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "Red and white checkers imply danger/emergency.",
     colors: ["red", "white"],
     pattern: "checkered",
-    imagePath: "/flags/special-pennants/emergency.png",
+    imagePath: "/flags/special-pennants/emergency.svg",
     difficulty: "beginner",
     order: 5
+  },
+  {
+    key: "flotilla",
+    name: "Flotilla",
+    type: "special-pennant",
+    category: "special",
+    meaning: "Flotilla.",
+    description: "Flotilla pennant.",
+    phonetic: "Flo-til-la",
+    tips: "Flotilla indicator.",
+    colors: ["black", "white"],
+    pattern: "misc",
+    imagePath: "/flags/special-pennants/flotilla.svg",
+    difficulty: "advanced",
+    order: 24
   },
   {
     key: "formation",
@@ -102,7 +117,7 @@ export const SPECIAL_PENNANTS: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "Red and white horizontal.",
     colors: ["red", "white"],
     pattern: "horizontal-bicolor",
-    imagePath: "/flags/special-pennants/formation.png",
+    imagePath: "/flags/special-pennants/formation.svg",
     difficulty: "advanced",
     order: 13
   },
@@ -117,7 +132,7 @@ export const SPECIAL_PENNANTS: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "Guide ship indicator.",
     colors: ["red", "white"],
     pattern: "misc",
-    imagePath: "/flags/special-pennants/guide.png",
+    imagePath: "/flags/special-pennants/guide.svg",
     difficulty: "advanced",
     order: 14
   },
@@ -132,7 +147,7 @@ export const SPECIAL_PENNANTS: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "Often red/white vertical stripes or specialized shape.",
     colors: ["red", "white"],
     pattern: "vertical-stripes",
-    imagePath: "/flags/special-pennants/interrogative.png",
+    imagePath: "/flags/special-pennants/interrogative.svg",
     difficulty: "intermediate",
     order: 6
   },
@@ -147,7 +162,7 @@ export const SPECIAL_PENNANTS: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "Negative answer.",
     colors: ["yellow", "red"],
     pattern: "checkered",
-    imagePath: "/flags/special-pennants/negat.png",
+    imagePath: "/flags/special-pennants/negat.svg",
     difficulty: "intermediate",
     order: 7
   },
@@ -162,7 +177,7 @@ export const SPECIAL_PENNANTS: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "Red for Port (left).",
     colors: ["red", "white"],
     pattern: "vertical-stripes",
-    imagePath: "/flags/special-pennants/port.png",
+    imagePath: "/flags/special-pennants/port.svg",
     difficulty: "advanced",
     order: 11
   },
@@ -177,7 +192,7 @@ export const SPECIAL_PENNANTS: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "Prepare for signal.",
     colors: ["yellow", "green"],
     pattern: "horizontal-stripes",
-    imagePath: "/flags/special-pennants/prepare.png",
+    imagePath: "/flags/special-pennants/prepare.svg",
     difficulty: "intermediate",
     order: 8
   },
@@ -192,7 +207,7 @@ export const SPECIAL_PENNANTS: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "Screening formation.",
     colors: ["black", "white"],
     pattern: "misc",
-    imagePath: "/flags/special-pennants/screen.png",
+    imagePath: "/flags/special-pennants/screen.svg",
     difficulty: "advanced",
     order: 15
   },
@@ -207,7 +222,7 @@ export const SPECIAL_PENNANTS: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "Indicates speed change.",
     colors: ["red", "white"],
     pattern: "misc",
-    imagePath: "/flags/special-pennants/speed.png",
+    imagePath: "/flags/special-pennants/speed.svg",
     difficulty: "advanced",
     order: 16
   },
@@ -222,7 +237,7 @@ export const SPECIAL_PENNANTS: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "Squadron indicator.",
     colors: ["black", "yellow"],
     pattern: "vertical-stripes",
-    imagePath: "/flags/special-pennants/squadron.png",
+    imagePath: "/flags/special-pennants/squadron.svg",
     difficulty: "advanced",
     order: 9
   },
@@ -237,7 +252,7 @@ export const SPECIAL_PENNANTS: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "Green for Starboard (right).",
     colors: ["green", "white"],
     pattern: "vertical-stripes",
-    imagePath: "/flags/special-pennants/starboard.png",
+    imagePath: "/flags/special-pennants/starboard.svg",
     difficulty: "advanced",
     order: 10
   },
@@ -252,7 +267,7 @@ export const SPECIAL_PENNANTS: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "Take station.",
     colors: ["red"],
     pattern: "solid",
-    imagePath: "/flags/special-pennants/station.png",
+    imagePath: "/flags/special-pennants/station.svg",
     difficulty: "advanced",
     order: 17
   },
@@ -267,7 +282,7 @@ export const SPECIAL_PENNANTS: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "Subdivision indicator.",
     colors: ["blue", "white"],
     pattern: "misc",
-    imagePath: "/flags/special-pennants/subdivision.png",
+    imagePath: "/flags/special-pennants/subdivision.svg",
     difficulty: "advanced",
     order: 18
   },
@@ -282,7 +297,7 @@ export const SPECIAL_PENNANTS: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "Commence turn.",
     colors: ["white", "black"],
     pattern: "misc",
-    imagePath: "/flags/special-pennants/turn.png",
+    imagePath: "/flags/special-pennants/turn.svg",
     difficulty: "advanced",
     order: 19
   }
@@ -300,7 +315,7 @@ export const SUBSTITUTES: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "Yellow inside blue.",
     colors: ["yellow", "blue"],
     pattern: "border",
-    imagePath: "/flags/substitutes/firstsub.png",
+    imagePath: "/flags/substitutes/firstsub.svg",
     difficulty: "advanced",
     order: 20
   },
@@ -315,7 +330,7 @@ export const SUBSTITUTES: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "Blue/White halves.",
     colors: ["blue", "white"],
     pattern: "bicolor",
-    imagePath: "/flags/substitutes/secondsub.png",
+    imagePath: "/flags/substitutes/secondsub.svg",
     difficulty: "advanced",
     order: 21
   },
@@ -330,7 +345,7 @@ export const SUBSTITUTES: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "White with black stripe.",
     colors: ["white", "black"],
     pattern: "horizontal-stripes",
-    imagePath: "/flags/substitutes/thirdsub.png",
+    imagePath: "/flags/substitutes/thirdsub.svg",
     difficulty: "advanced",
     order: 22
   },
@@ -345,7 +360,7 @@ export const SUBSTITUTES: Omit<Doc<"flags">, "_id" | "_creationTime">[] = [
     tips: "Red with yellow center.",
     colors: ["red", "yellow"],
     pattern: "misc",
-    imagePath: "/flags/substitutes/foursub.png",
+    imagePath: "/flags/substitutes/foursub.svg",
     difficulty: "advanced",
     order: 23
   }

@@ -13,7 +13,6 @@ import type * as seed_letters from "../seed/letters.js";
 import type * as seed_numbers from "../seed/numbers.js";
 import type * as seed_special from "../seed/special.js";
 import type * as seed_flags from "../seed_flags.js";
-import type * as seed_single from "../seed_single.js";
 import type * as users from "../users.js";
 
 import type {
@@ -28,7 +27,6 @@ declare const fullApi: ApiFromModules<{
   "seed/numbers": typeof seed_numbers;
   "seed/special": typeof seed_special;
   seed_flags: typeof seed_flags;
-  seed_single: typeof seed_single;
   users: typeof users;
 }>;
 

@@ -10,7 +10,7 @@ export const ALPHABET_FLAGS = [
     tips: "Looks like a diver's fin or a swallow tail cut (though it is rectangular). Memorize: A-lpha = A-ngle (the diagonal cut).",
     colors: ["white", "blue"],
     pattern: "vertical-bicolor",
-    imagePath: "/flags/flag-letters/alpha.png",
+    imagePath: "/flags/flag-letters/alpha.svg",
     difficulty: "beginner",
     order: 1
   },
@@ -25,7 +25,7 @@ export const ALPHABET_FLAGS = [
     tips: "B = Blood red. Or 'Boom' (dangerous cargo).",
     colors: ["red"],
     pattern: "solid",
-    imagePath: "/flags/flag-letters/bravo.png",
+    imagePath: "/flags/flag-letters/bravo.svg",
     difficulty: "beginner",
     order: 2
   },
@@ -40,7 +40,7 @@ export const ALPHABET_FLAGS = [
     tips: "C = Colorful (5 stripes).",
     colors: ["blue", "white", "red"],
     pattern: "horizontal-stripes",
-    imagePath: "/flags/flag-letters/charlie.png",
+    imagePath: "/flags/flag-letters/charlie.svg",
     difficulty: "intermediate",
     order: 3
   },
@@ -55,7 +55,7 @@ export const ALPHABET_FLAGS = [
     tips: "D = Divider (blue divides the yellow).",
     colors: ["yellow", "blue"],
     pattern: "horizontal-stripes",
-    imagePath: "/flags/flag-letters/delta.png",
+    imagePath: "/flags/flag-letters/delta.svg",
     difficulty: "intermediate",
     order: 4
   },
@@ -70,7 +70,7 @@ export const ALPHABET_FLAGS = [
     tips: "E = Earth (red) below Sky (blue). Or 'Equator' dividing the two.",
     colors: ["blue", "red"],
     pattern: "horizontal-bicolor",
-    imagePath: "/flags/flag-letters/echo.png",
+    imagePath: "/flags/flag-letters/echo.svg",
     difficulty: "beginner",
     order: 5
   },
@@ -85,7 +85,7 @@ export const ALPHABET_FLAGS = [
     tips: "F = Four corners of the diamond. Or 'Fox' in the hole (diamond).",
     colors: ["white", "red"],
     pattern: "diamond",
-    imagePath: "/flags/flag-letters/foxtrot.png",
+    imagePath: "/flags/flag-letters/foxtrot.svg",
     difficulty: "advanced",
     order: 6
   },
@@ -100,7 +100,7 @@ export const ALPHABET_FLAGS = [
     tips: "G = Gridiron (looks like stripes on a field).",
     colors: ["yellow", "blue"],
     pattern: "vertical-stripes",
-    imagePath: "/flags/flag-letters/golf.png",
+    imagePath: "/flags/flag-letters/golf.svg",
     difficulty: "intermediate",
     order: 7
   },
@@ -115,7 +115,7 @@ export const ALPHABET_FLAGS = [
     tips: "H = Half. Half white, half red.",
     colors: ["white", "red"],
     pattern: "vertical-bicolor",
-    imagePath: "/flags/flag-letters/hotel.png",
+    imagePath: "/flags/flag-letters/hotel.svg",
     difficulty: "beginner",
     order: 8
   },
@@ -130,7 +130,7 @@ export const ALPHABET_FLAGS = [
     tips: "I = Island (black circle) in the sun (yellow).",
     colors: ["yellow", "black"],
     pattern: "circle",
-    imagePath: "/flags/flag-letters/india.png",
+    imagePath: "/flags/flag-letters/india.svg",
     difficulty: "beginner",
     order: 9
   },
@@ -145,7 +145,7 @@ export const ALPHABET_FLAGS = [
     tips: "J = Jelly sandwich (white filling). Same as Charlie but fewer stripes.",
     colors: ["blue", "white"],
     pattern: "horizontal-stripes",
-    imagePath: "/flags/flag-letters/julliet.png",
+    imagePath: "/flags/flag-letters/juliet.svg",
     difficulty: "intermediate",
     order: 10
   },
@@ -160,7 +160,7 @@ export const ALPHABET_FLAGS = [
     tips: "K = Kickoff. Similar to Hotel but Yellow/Blue.",
     colors: ["yellow", "blue"],
     pattern: "vertical-bicolor",
-    imagePath: "/flags/flag-letters/kilo.png",
+    imagePath: "/flags/flag-letters/kilo.svg",
     difficulty: "intermediate",
     order: 11
   },
@@ -175,7 +175,7 @@ export const ALPHABET_FLAGS = [
     tips: "L = Laboratory warning (yellow/black warning/hazard colors).",
     colors: ["yellow", "black"],
     pattern: "quarters",
-    imagePath: "/flags/flag-letters/lima.png",
+    imagePath: "/flags/flag-letters/lima.svg",
     difficulty: "intermediate",
     order: 12
   },
@@ -190,7 +190,7 @@ export const ALPHABET_FLAGS = [
     tips: "M = Medical (Scottish cross pattern/details). Looks like an 'X' for 'Marks the spot'.",
     colors: ["blue", "white"],
     pattern: "saltire",
-    imagePath: "/flags/flag-letters/mike.png",
+    imagePath: "/flags/flag-letters/mike.svg",
     difficulty: "advanced",
     order: 13
   },
@@ -205,7 +205,7 @@ export const ALPHABET_FLAGS = [
     tips: "N = No. Checkered flag like finish line, but blue/white squares.",
     colors: ["blue", "white"],
     pattern: "checkered",
-    imagePath: "/flags/flag-letters/november.png",
+    imagePath: "/flags/flag-letters/november.svg",
     difficulty: "advanced",
     order: 14
   },
@@ -220,7 +220,7 @@ export const ALPHABET_FLAGS = [
     tips: "O = Overboard. Red over Yellow.",
     colors: ["red", "yellow"],
     pattern: "diagonal-split",
-    imagePath: "/flags/flag-letters/oscar.png",
+    imagePath: "/flags/flag-letters/oscar.svg",
     difficulty: "intermediate",
     order: 15
   },
@@ -235,7 +235,7 @@ export const ALPHABET_FLAGS = [
     tips: "P = Peer inside (white center). 'Blue Peter'.",
     colors: ["blue", "white"],
     pattern: "square",
-    imagePath: "/flags/flag-letters/papa.png",
+    imagePath: "/flags/flag-letters/papa.svg",
     difficulty: "intermediate",
     order: 16
   },
@@ -250,7 +250,7 @@ export const ALPHABET_FLAGS = [
     tips: "Q = Quarantine. Yellow is the traditional color of quarantine/sickness warning, but here it requests clearance.",
     colors: ["yellow"],
     pattern: "solid",
-    imagePath: "/flags/flag-letters/quebec.png",
+    imagePath: "/flags/flag-letters/quebec.svg",
     difficulty: "beginner",
     order: 17
   },
@@ -265,7 +265,7 @@ export const ALPHABET_FLAGS = [
     tips: "R = Red Cross (though yellow here). 'Roger' in voice, but Romeo in flags.",
     colors: ["red", "yellow"],
     pattern: "cross",
-    imagePath: "/flags/flag-letters/romeo.png",
+    imagePath: "/flags/flag-letters/romeo.svg",
     difficulty: "intermediate",
     order: 18
   },
@@ -280,7 +280,7 @@ export const ALPHABET_FLAGS = [
     tips: "S = Square (opposite of Papa). White outer, Blue inner.",
     colors: ["white", "blue"],
     pattern: "square",
-    imagePath: "/flags/flag-letters/sierra.png",
+    imagePath: "/flags/flag-letters/sierra.svg",
     difficulty: "intermediate",
     order: 19
   },
@@ -295,7 +295,7 @@ export const ALPHABET_FLAGS = [
     tips: "T = Tricolor (like the French flag).",
     colors: ["red", "white", "blue"],
     pattern: "vertical-stripes",
-    imagePath: "/flags/flag-letters/tango.png",
+    imagePath: "/flags/flag-letters/tango.svg",
     difficulty: "intermediate",
     order: 20
   },
@@ -310,7 +310,7 @@ export const ALPHABET_FLAGS = [
     tips: "U = Uh oh (danger). Red and white checks.",
     colors: ["red", "white"],
     pattern: "quarters",
-    imagePath: "/flags/flag-letters/uniform.png",
+    imagePath: "/flags/flag-letters/uniform.svg",
     difficulty: "intermediate",
     order: 21
   },
@@ -325,7 +325,7 @@ export const ALPHABET_FLAGS = [
     tips: "V = Very needing help. Red X on white.",
     colors: ["white", "red"],
     pattern: "saltire",
-    imagePath: "/flags/flag-letters/victor.png",
+    imagePath: "/flags/flag-letters/victor.svg",
     difficulty: "beginner",
     order: 22
   },
@@ -340,7 +340,7 @@ export const ALPHABET_FLAGS = [
     tips: "W = With another color inside (3 colors).",
     colors: ["blue", "white", "red"],
     pattern: "concentric-squares",
-    imagePath: "/flags/flag-letters/whiskey.png",
+    imagePath: "/flags/flag-letters/whiskey.svg",
     difficulty: "advanced",
     order: 23
   },
@@ -355,7 +355,7 @@ export const ALPHABET_FLAGS = [
     tips: "X = Cross. Blue cross on white.",
     colors: ["white", "blue"],
     pattern: "cross",
-    imagePath: "/flags/flag-letters/xray.png",
+    imagePath: "/flags/flag-letters/xray.svg",
     difficulty: "intermediate",
     order: 24
   },
@@ -370,7 +370,7 @@ export const ALPHABET_FLAGS = [
     tips: "Y = Yellow/Red diagonal stripes.",
     colors: ["yellow", "red"],
     pattern: "diagonal-stripes",
-    imagePath: "/flags/flag-letters/yankee.png",
+    imagePath: "/flags/flag-letters/yankee.svg",
     difficulty: "advanced",
     order: 25
   },
@@ -385,7 +385,7 @@ export const ALPHABET_FLAGS = [
     tips: "Z = Zigzag (the diagonal cuts look chaotic). Black/Red/Blue/Yellow.",
     colors: ["yellow", "black", "red", "blue"],
     pattern: "diagonal-quarters",
-    imagePath: "/flags/flag-letters/zulu.png",
+    imagePath: "/flags/flag-letters/zulu.svg",
     difficulty: "advanced",
     order: 26
   }
