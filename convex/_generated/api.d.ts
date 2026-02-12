@@ -9,6 +9,11 @@
  */
 
 import type * as flags from "../flags.js";
+import type * as lib_distractor_generation from "../lib/distractor_generation.js";
+import type * as lib_flag_similarity from "../lib/flag_similarity.js";
+import type * as lib_performance from "../lib/performance.js";
+import type * as lib_randomization from "../lib/randomization.js";
+import type * as lib_types from "../lib/types.js";
 import type * as practice_sessions from "../practice_sessions.js";
 import type * as seed_letters from "../seed/letters.js";
 import type * as seed_numbers from "../seed/numbers.js";
@@ -25,6 +30,11 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   flags: typeof flags;
+  "lib/distractor_generation": typeof lib_distractor_generation;
+  "lib/flag_similarity": typeof lib_flag_similarity;
+  "lib/performance": typeof lib_performance;
+  "lib/randomization": typeof lib_randomization;
+  "lib/types": typeof lib_types;
   practice_sessions: typeof practice_sessions;
   "seed/letters": typeof seed_letters;
   "seed/numbers": typeof seed_numbers;

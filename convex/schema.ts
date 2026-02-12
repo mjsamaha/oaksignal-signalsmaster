@@ -64,6 +64,7 @@ export default defineSchema({
     flagIds: v.array(v.id("flags")),
     currentIndex: v.number(),
     score: v.number(),
+    correctCount: v.number(), // Number of correct answers (0 initially)
     status: v.union(
       v.literal("active"),
       v.literal("completed"),
@@ -71,6 +72,23 @@ export default defineSchema({
     ),
     startedAt: v.number(),
     completedAt: v.optional(v.number()),
+    
+    // Question Generation Data (optional for backward compatibility)
+    questions: v.optional(v.array(v.object({
+      flagId: v.id("flags"),
+      questionType: v.union(v.literal("learn"), v.literal("match")),
+      options: v.array(v.object({
+        id: v.string(),        // Unique identifier (e.g., "opt_0", "opt_1")
+        label: v.string(),     // Display text (flag name for "learn" mode, empty for "match" mode)
+        value: v.string(),     // Flag key or identifier
+        imagePath: v.optional(v.string()), // Image path for "match" mode (flag image to display)
+      })),
+      correctAnswer: v.string(), // ID of correct option
+      userAnswer: v.union(v.string(), v.null()), // ID of selected option, null initially
+    }))),
+    
+    // Performance & Analytics Metadata
+    generationTime: v.optional(v.number()), // Time taken to generate questions (ms)
   })
   .index("by_user", ["userId"])
   .index("by_user_status", ["userId", "status"])

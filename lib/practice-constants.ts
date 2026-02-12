@@ -52,3 +52,39 @@ export const DEFAULT_SESSION_CONFIG = {
 
 export const MIN_SESSION_LENGTH = 5;
 export const MAX_SESSION_LENGTH = 30;
+
+/**
+ * Quiz Keyboard Shortcuts
+ * Key mappings for quiz interface interactions
+ */
+export const KEYBOARD_SHORTCUTS = {
+  OPTION_1: '1',
+  OPTION_2: '2',
+  OPTION_3: '3',
+  OPTION_4: '4',
+  SUBMIT: 'Enter',
+  HELP: '?',
+  ESCAPE: 'Escape',
+} as const;
+
+export type KeyboardShortcut = typeof KEYBOARD_SHORTCUTS[keyof typeof KEYBOARD_SHORTCUTS];
+
+/**
+ * Quiz UI Configuration
+ */
+export const QUIZ_CONFIG = {
+  FEEDBACK_DISPLAY_DURATION: 2000,      // ms to show answer feedback before next question
+  CELEBRATION_STREAK_THRESHOLD: 3,      // Show celebration after this many correct in a row
+  SUBMIT_DEBOUNCE_DELAY: 300,           // ms to debounce submit button clicks
+  LOADING_TIMEOUT: 10000,               // ms before showing connection error
+  MIN_TOUCH_TARGET_SIZE: 44,            // pixels - WCAG minimum touch target
+} as const;
+
+/**
+ * Celebration Trigger Thresholds
+ */
+export const CELEBRATION_THRESHOLDS = {
+  STREAK_TRIGGER: 3,                    // Celebrate every 3rd consecutive correct
+  ACCURACY_TRIGGER: 90,                 // Celebrate if accuracy >= 90%
+  PERFECT_SESSION_BONUS: true,          // Extra celebration for 100% accuracy
+} as const;

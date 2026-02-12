@@ -1,6 +1,10 @@
 import { v } from "convex/values";
 import { mutation, query, QueryCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
+import { Question } from "./lib/types";
+import { startTimer } from "./lib/performance";
+import { distributeAnswerPositions, distributeAnswerPositionsSeeded } from "./lib/randomization";
+import { generateLearnModeOptions, generateMatchModeOptions } from "./lib/distractor_generation";
 
 /**
  * Helper: Randomly select N flags from all available flags
@@ -34,6 +38,32 @@ async function selectRandomFlags(
   }
 
   return shuffled.slice(0, actualCount).map((flag: Doc<"flags">) => flag._id);
+}
+
+/**
+ * Helper: Fetch full flag documents for question generation
+ * Converts array of flag IDs to complete flag objects with all metadata.
+ * 
+ * @param ctx - Query context
+ * @param flagIds - Array of flag IDs to fetch
+ * @returns Array of complete flag documents
+ * @throws Error if any flag is not found
+ */
+async function fetchFlagsForGeneration(
+  ctx: QueryCtx,
+  flagIds: Id<"flags">[]
+): Promise<Doc<"flags">[]> {
+  const flags: Doc<"flags">[] = [];
+  
+  for (const flagId of flagIds) {
+    const flag = await ctx.db.get(flagId);
+    if (!flag) {
+      throw new Error(`Flag with ID ${flagId} not found`);
+    }
+    flags.push(flag);
+  }
+  
+  return flags;
 }
 
 /**
@@ -183,8 +213,113 @@ export const getSessionById = query({
 });
 
 /**
- * Mutation: Create new practice session
- * Validates no active session exists, selects random flags, creates session
+ * Query: Get current question with full flag data
+ * Returns the current question for the active session with populated flag details.
+ * Used by quiz interface to display question and options.
+ */
+export const getCurrentQuestion = query({
+  args: { sessionId: v.id("practiceSessions") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Must be authenticated to get question");
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Fetch session
+    const session = await ctx.db.get(args.sessionId);
+
+    // Security: Only allow user to access their own session
+    if (!session || session.userId !== user._id) {
+      throw new Error("Session not found or access denied");
+    }
+
+    // Return null for non-active sessions (completed, abandoned)
+    if (session.status !== "active") {
+      return null;
+    }
+
+    // Check for questions array (backward compatibility)
+    if (!session.questions || session.questions.length === 0) {
+      throw new Error("Session has no questions. This may be a legacy session.");
+    }
+
+    // Check if session is complete
+    if (session.currentIndex >= session.questions.length) {
+      return null; // Session complete
+    }
+
+    // Get current question
+    const currentQuestion = session.questions[session.currentIndex];
+
+    // Fetch full flag document
+    const flag = await ctx.db.get(currentQuestion.flagId);
+    if (!flag) {
+      throw new Error(`Flag not found for question`);
+    }
+
+    // Calculate progress stats
+    const answeredQuestions = session.questions.slice(0, session.currentIndex);
+    const correctCount = answeredQuestions.filter(
+      q => q.userAnswer === q.correctAnswer
+    ).length;
+    const incorrectCount = answeredQuestions.length - correctCount;
+    
+    // Calculate current streak
+    let streak = 0;
+    for (let i = session.currentIndex - 1; i >= 0; i--) {
+      const q = session.questions[i];
+      if (q.userAnswer === q.correctAnswer) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+
+    const accuracy =
+      answeredQuestions.length > 0
+        ? Math.round((correctCount / answeredQuestions.length) * 100)
+        : 0;
+
+    return {
+      question: currentQuestion,
+      flag: {
+        _id: flag._id,
+        key: flag.key,
+        type: flag.type,
+        name: flag.name,
+        meaning: flag.meaning,
+        imagePath: flag.imagePath,
+        colors: flag.colors,
+        description: flag.description,
+      },
+      questionIndex: session.currentIndex,
+      totalQuestions: session.questions.length,
+      progress: {
+        currentIndex: session.currentIndex,
+        totalQuestions: session.questions.length,
+        correctCount,
+        incorrectCount,
+        streak,
+        accuracy,
+        questionsRemaining: session.questions.length - session.currentIndex,
+      },
+    };
+  },
+});
+
+/**
+ * Mutation: Create new practice session with randomized questions
+ * Generates complete question set with shuffled multiple-choice options.
+ * Includes performance monitoring and error handling.
  */
 export const createPracticeSession = mutation({
   args: {
@@ -196,8 +331,13 @@ export const createPracticeSession = mutation({
       v.literal(30),
       v.literal("all")
     ),
+    randomSeed: v.optional(v.number()), // Optional seed for deterministic testing
   },
   handler: async (ctx, args) => {
+    // START PERFORMANCE MONITORING
+    const timer = startTimer();
+    
+    // 1. AUTHENTICATE USER
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Must be authenticated to create practice session");
@@ -212,7 +352,7 @@ export const createPracticeSession = mutation({
       throw new Error("User not found");
     }
 
-    // Check for existing active session
+    // 2. CHECK FOR EXISTING ACTIVE SESSION
     const existingActiveSession = await ctx.db
       .query("practiceSessions")
       .withIndex("by_user_status", (q) =>
@@ -226,14 +366,81 @@ export const createPracticeSession = mutation({
       );
     }
 
-    // Select random flags
+    // 3. SELECT RANDOM FLAGS
     const flagIds = await selectRandomFlags(ctx, args.sessionLength);
 
     if (flagIds.length === 0) {
       throw new Error("No flags available for practice");
     }
 
-    // Create new session
+    // 4. FETCH FULL FLAG DOCUMENTS
+    const selectedFlags = await fetchFlagsForGeneration(ctx, flagIds);
+    
+    // Get all flags for distractor generation
+    const allFlags = await ctx.db
+      .query("flags")
+      .withIndex("by_order")
+      .collect();
+    
+    // ERROR HANDLING: Ensure sufficient flags for question generation
+    if (allFlags.length < 4) {
+      throw new Error(
+        `Insufficient flags for question generation. Need at least 4 flags, but only ${allFlags.length} available.`
+      );
+    }
+    
+    // 5. GENERATE ANSWER POSITION DISTRIBUTION
+    const answerPositions = args.randomSeed
+      ? distributeAnswerPositionsSeeded(selectedFlags.length, args.randomSeed)
+      : distributeAnswerPositions(selectedFlags.length);
+    
+    // 6. GENERATE QUESTIONS WITH SHUFFLED OPTIONS
+    const questions: Question[] = [];
+    
+    for (let i = 0; i < selectedFlags.length; i++) {
+      const targetFlag = selectedFlags[i];
+      const correctPosition = answerPositions[i];
+      
+      try {
+        // Generate options based on practice mode
+        const { options, correctAnswer } = args.mode === "learn"
+          ? generateLearnModeOptions(targetFlag, allFlags, correctPosition)
+          : generateMatchModeOptions(targetFlag, allFlags, correctPosition);
+        
+        // Build question object
+        const question: Question = {
+          flagId: targetFlag._id,
+          questionType: args.mode,
+          options,
+          correctAnswer,
+          userAnswer: null,
+        };
+        
+        questions.push(question);
+      } catch (error) {
+        // Log error but provide helpful message
+        console.error(`Error generating question for flag ${targetFlag.key}:`, error);
+        throw new Error(
+          `Failed to generate questions. Please try again with a smaller session size.`
+        );
+      }
+    }
+    
+    // 7. CALCULATE GENERATION TIME
+    const generationTime = timer.elapsed();
+    
+    // 8. LOG PERFORMANCE WARNING IF EXCEEDED THRESHOLD
+    if (generationTime > 2000) {
+      console.warn(
+        `[Performance Warning] Question generation took ${generationTime}ms (threshold: 2000ms) for ${questions.length} questions`
+      );
+    } else {
+      console.log(
+        `[Performance] Generated ${questions.length} questions in ${generationTime}ms`
+      );
+    }
+    
+    // 9. CREATE SESSION WITH QUESTIONS
     const sessionId = await ctx.db.insert("practiceSessions", {
       userId: user._id,
       mode: args.mode,
@@ -241,8 +448,11 @@ export const createPracticeSession = mutation({
       flagIds,
       currentIndex: 0,
       score: 0,
+      correctCount: 0,
       status: "active",
       startedAt: Date.now(),
+      questions,
+      generationTime,
     });
 
     return sessionId;
@@ -392,5 +602,147 @@ export const completeSession = mutation({
     });
 
     return { success: true };
+  },
+});
+
+/**
+ * Mutation: Submit answer for current question
+ * Records user's answer, validates correctness, updates score and progress.
+ * Advances to next question or marks session as complete.
+ */
+export const submitAnswer = mutation({
+  args: {
+    sessionId: v.id("practiceSessions"),
+    questionIndex: v.number(),
+    selectedAnswer: v.string(), // Option ID (e.g., "opt_1")
+    timeSpent: v.optional(v.number()), // Optional: ms spent on question
+  },
+  handler: async (ctx, args) => {
+    // 1. AUTHENTICATE USER
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Must be authenticated to submit answer");
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // 2. FETCH SESSION
+    const session = await ctx.db.get(args.sessionId);
+
+    if (!session) {
+      throw new Error("Session not found");
+    }
+
+    // 3. SECURITY CHECK
+    if (session.userId !== user._id) {
+      throw new Error("You can only submit answers for your own sessions");
+    }
+
+    // 4. VALIDATE SESSION STATE
+    if (session.status !== "active") {
+      throw new Error(`Cannot submit answer for ${session.status} session`);
+    }
+
+    if (!session.questions || session.questions.length === 0) {
+      throw new Error("Session has no questions");
+    }
+
+    // 5. VALIDATE QUESTION INDEX
+    if (args.questionIndex !== session.currentIndex) {
+      throw new Error(
+        `Question index mismatch. Expected ${session.currentIndex}, got ${args.questionIndex}`
+      );
+    }
+
+    if (args.questionIndex >= session.questions.length) {
+      throw new Error("Question index out of bounds");
+    }
+
+    // 6. GET CURRENT QUESTION
+    const currentQuestion = session.questions[args.questionIndex];
+
+    // 7. VALIDATE ANSWER NOT ALREADY SUBMITTED
+    if (currentQuestion.userAnswer !== null) {
+      throw new Error("Answer already submitted for this question");
+    }
+
+    // 8. VALIDATE SELECTED ANSWER IS VALID OPTION
+    const validOptionIds = currentQuestion.options.map(opt => opt.id);
+    if (!validOptionIds.includes(args.selectedAnswer)) {
+      throw new Error(
+        `Invalid option selected. Valid options: ${validOptionIds.join(", ")}`
+      );
+    }
+
+    // 9. CHECK IF ANSWER IS CORRECT
+    const isCorrect = args.selectedAnswer === currentQuestion.correctAnswer;
+
+    // 10. UPDATE QUESTIONS ARRAY
+    const updatedQuestions = [...session.questions];
+    updatedQuestions[args.questionIndex] = {
+      ...currentQuestion,
+      userAnswer: args.selectedAnswer,
+    };
+
+    // 11. CALCULATE NEW SCORE AND COUNTS
+    const newCorrectCount = isCorrect ? session.correctCount + 1 : session.correctCount;
+    const totalAnswered = args.questionIndex + 1;
+    const newScore = Math.round((newCorrectCount / session.questions.length) * 100);
+
+    // 12. CALCULATE STREAK
+    let currentStreak = 0;
+    for (let i = args.questionIndex; i >= 0; i--) {
+      const q = updatedQuestions[i];
+      if (q.userAnswer === q.correctAnswer) {
+        currentStreak++;
+      } else {
+        break;
+      }
+    }
+
+    // 13. ADVANCE TO NEXT QUESTION
+    const nextQuestionIndex = args.questionIndex + 1;
+    const isSessionComplete = nextQuestionIndex >= session.questions.length;
+
+    // 14. UPDATE SESSION
+    const updateData: {
+      questions: typeof updatedQuestions;
+      correctCount: number;
+      score: number;
+      currentIndex: number;
+      status?: "active" | "completed";
+      completedAt?: number;
+    } = {
+      questions: updatedQuestions,
+      correctCount: newCorrectCount,
+      score: newScore,
+      currentIndex: nextQuestionIndex,
+    };
+
+    // Mark session as completed if this was the last question
+    if (isSessionComplete) {
+      updateData.status = "completed";
+      updateData.completedAt = Date.now();
+    }
+
+    await ctx.db.patch(args.sessionId, updateData);
+
+    // 15. RETURN RESULT
+    return {
+      isCorrect,
+      correctAnswer: currentQuestion.correctAnswer,
+      currentStreak,
+      score: newScore,
+      correctCount: newCorrectCount,
+      isSessionComplete,
+      nextQuestionIndex: isSessionComplete ? undefined : nextQuestionIndex,
+    };
   },
 });

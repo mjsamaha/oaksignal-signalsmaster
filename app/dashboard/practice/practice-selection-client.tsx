@@ -46,6 +46,12 @@ export function PracticeSelectionClient() {
 
     setIsCreating(true)
     try {
+      // Show loading toast for generation process
+      toast({
+        title: "Generating questions...",
+        description: "Creating your personalized practice session with randomized questions.",
+      })
+
       const sessionId = await createSession({
         mode: selectedMode,
         sessionLength: selectedLength,
@@ -53,16 +59,26 @@ export function PracticeSelectionClient() {
 
       toast({
         title: "Practice session created!",
-        description: "Starting your practice session...",
+        description: "Questions generated successfully. Starting your session...",
       })
 
       // Navigate to session page
       router.push(`/dashboard/practice/session/${sessionId}`)
     } catch (error) {
       console.error("Failed to create session:", error)
+      
+      // Enhanced error handling with specific messages
+      const errorMessage = error instanceof Error ? error.message : "Please try again"
+      const isInsufficientFlags = errorMessage.includes("Insufficient flags")
+      const isGenerationError = errorMessage.includes("Failed to generate")
+      
       toast({
-        title: "Failed to create session",
-        description: error instanceof Error ? error.message : "Please try again",
+        title: isInsufficientFlags 
+          ? "Not enough flags available" 
+          : isGenerationError
+          ? "Question generation failed"
+          : "Failed to create session",
+        description: errorMessage,
         variant: "destructive",
       })
       setIsCreating(false)
@@ -180,7 +196,7 @@ export function PracticeSelectionClient() {
           size="lg"
           className="w-full md:w-auto min-w-50"
         >
-          {isCreating ? "Creating Session..." : "Start Practice"}
+          {isCreating ? "Generating Questions..." : "Start Practice"}
         </Button>
 
         {!validation.isValid && selectedMode && selectedLength && (
