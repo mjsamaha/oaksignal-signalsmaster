@@ -71,3 +71,14 @@ echo "✅ Basic security checks passed"
 
 # Run existing Lint task
 npm run lint
+
+# type check (highest ROI check after linting)
+echo "🔍 Running TypeScript type checks..."
+npx tsc --noEmit
+if [ $? -ne 0 ]; then
+  echo "❌ TypeScript errors detected!"
+  exit 1
+fi
+
+# convex type safety check
+npx convex codegen
