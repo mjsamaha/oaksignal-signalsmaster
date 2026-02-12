@@ -44,3 +44,7 @@ next-env.d.ts
 
 # docs
 docs/
+
+# AI context
+AGENTS.md
+

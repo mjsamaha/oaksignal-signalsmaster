@@ -5,7 +5,9 @@ import {
   Flame 
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { CURRENT_USER, MOCK_STATS } from "@/lib/mock-data"
+
+// TODO: Add Convex queries for user stats
+// const userStats = useQuery(api.users.getCurrentUserStats)
 
 export function StatsOverview() {
   return (
@@ -18,9 +20,9 @@ export function StatsOverview() {
           <Trophy className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-primary">{CURRENT_USER.rank}</div>
+          <div className="text-2xl font-bold text-muted-foreground">--</div>
           <p className="text-xs text-muted-foreground">
-            {CURRENT_USER.rankTitle}
+            No rank data
           </p>
         </CardContent>
       </Card>
@@ -33,9 +35,9 @@ export function StatsOverview() {
           <Flag className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{CURRENT_USER.totalFlagsMastered}</div>
+          <div className="text-2xl font-bold text-muted-foreground">0</div>
           <p className="text-xs text-muted-foreground">
-            +2 since last week
+            Start practicing to master flags
           </p>
         </CardContent>
       </Card>
@@ -48,9 +50,9 @@ export function StatsOverview() {
           <Target className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{CURRENT_USER.accuracy}%</div>
+          <div className="text-2xl font-bold text-muted-foreground">--</div>
           <p className="text-xs text-muted-foreground">
-            Top 15% of fleet
+            No data yet
           </p>
         </CardContent>
       </Card>
@@ -63,9 +65,9 @@ export function StatsOverview() {
           <Flame className="h-4 w-4 text-orange-500" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{MOCK_STATS.currentStreak} Days</div>
+          <div className="text-2xl font-bold text-muted-foreground">0 Days</div>
           <p className="text-xs text-muted-foreground">
-            Keep it up!
+            Start your streak today
           </p>
         </CardContent>
       </Card>

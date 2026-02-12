@@ -1,6 +1,7 @@
-// This file serves as a temporary data verification layer.
-// Once backend integration is ready, we will replace these exports with API calls.
-// TODO: Delete this file after connecting to MongoDB/NextAuth
+// ⚠️ DEPRECATED: This file is no longer used in the dashboard.
+// All mock data has been removed in preparation for Convex backend integration.
+// This file is kept temporarily as a reference for data structure during backend development.
+// TODO: Delete this file completely once Convex queries are implemented and tested.
 
 export interface MockUser {
   id: string;

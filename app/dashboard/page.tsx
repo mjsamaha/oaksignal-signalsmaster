@@ -10,7 +10,9 @@ import { ModuleCard } from "@/components/dashboard/module-card"
 import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { CURRENT_USER } from "@/lib/mock-data"
+
+// TODO: Add Convex query for current user
+// const currentUser = useQuery(api.users.getCurrentUser)
 
 export default function DashboardPage() {
   return (
@@ -19,7 +21,7 @@ export default function DashboardPage() {
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
           <p className="text-muted-foreground">
-            Welcome back, {CURRENT_USER.name}. Ready to master some flags?
+            Welcome back. Ready to master some flags?
           </p>
         </div>
         <div className="flex items-center space-x-2">
@@ -65,13 +67,14 @@ export default function DashboardPage() {
         <RecentActivity />
         
         <Card className="col-span-1 md:col-span-2 lg:col-span-4">
-            {/* Placeholder for a chart or more detailed stat breakdown in future */}
+            {/* TODO: Add performance chart with Convex query */}
+            {/* const performanceData = useQuery(api.stats.getPerformanceTrend) */}
             <CardHeader>
                 <CardTitle>Performance Trend</CardTitle>
                 <CardDescription>Average accuracy over last 10 sessions</CardDescription>
             </CardHeader>
             <CardContent className="h-[200px] flex items-center justify-center text-muted-foreground bg-muted/20 rounded-md mx-6 mb-6">
-                Chart Placeholder
+                <p>Performance data will appear here</p>
             </CardContent>
         </Card>
       </div>
