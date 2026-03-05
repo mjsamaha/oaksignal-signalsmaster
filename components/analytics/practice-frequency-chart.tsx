@@ -40,8 +40,8 @@ export function PracticeFrequencyChart({ data }: PracticeFrequencyChartProps) {
         <CardTitle>Practice Frequency</CardTitle>
         <CardDescription>Sessions completed over recent weeks</CardDescription>
       </CardHeader>
-      <CardContent className="h-62.5 w-full">
-        <ResponsiveContainer width="100%" height="100%">
+      <CardContent className="h-62.5 w-full min-w-0">
+        <ResponsiveContainer width="100%" height={250} minWidth={0}>
           <BarChart data={formattedData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground)/0.2)" />
             <XAxis 

@@ -36,8 +36,8 @@ export function PerformanceTrendChart({ data }: PerformanceTrendChartProps) {
         <CardTitle>Performance Trend</CardTitle>
         <CardDescription>Score percentage across your recent sessions</CardDescription>
       </CardHeader>
-      <CardContent className="h-75 w-full">
-        <ResponsiveContainer width="100%" height="100%">
+      <CardContent className="h-75 w-full min-w-0">
+        <ResponsiveContainer width="100%" height={300} minWidth={0}>
           <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground)/0.2)" />
             <XAxis 

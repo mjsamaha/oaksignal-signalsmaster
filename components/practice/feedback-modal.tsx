@@ -151,6 +151,9 @@ export function FeedbackModal({
           className="max-w-2xl max-h-[90vh] overflow-y-auto"
           aria-describedby="feedback-description"
         >
+          <DialogDescription id="feedback-description" className="sr-only">
+            Question feedback details and next action.
+          </DialogDescription>
           <AnimatePresence mode="wait">
             {open && (
               <motion.div
@@ -172,7 +175,7 @@ export function FeedbackModal({
                       <DialogTitle className="text-2xl">
                         {isCorrect ? "Correct!" : "Not Quite"}
                       </DialogTitle>
-                      <DialogDescription id="feedback-description">
+                      <DialogDescription>
                         Review the flag details below
                       </DialogDescription>
                     </div>
