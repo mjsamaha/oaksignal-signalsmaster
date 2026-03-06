@@ -39,16 +39,13 @@ Designed for both rapid learning and formal assessment:
 
 ## 🛠️ Tech Stack
 
-Built with a high-performance, type-safe stack for reliability and scalability:
-
-- **Framework**: [Next.js 16](https://nextjs.org/) (App Router, Turbopack)
-- **Language**: [TypeScript](https://www.typescriptlang.org/)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/) with [ShadCN/UI](https://ui.shadcn.com/)
-- **Animations**: [Framer Motion](https://www.framer.com/motion/)
-- **Database**: [MongoDB Atlas](https://www.mongodb.com/)
-- **Authentication**: [NextAuth.js](https://next-auth.js.org/) (OAuth2 with Azure AD)
-- **State Management**: Zustand
-
+* **Framework / Library**: [React.js](https://reactjs.org/) + [Next.js 16](https://nextjs.org/) (App Router, Turbopack)
+* **Language**: [TypeScript](https://www.typescriptlang.org/)
+* **Styling / UI**: [Tailwind CSS](https://tailwindcss.com/) with [ShadCN/UI](https://ui.shadcn.com/)
+* **Animations**: [Framer Motion](https://www.framer.com/motion/)
+* **Database / Backend**: [Convex](https://convex.dev/)
+* **Authentication**: [Clerk](https://clerk.com/)
+  
 ---
 
 ## 🚀 Getting Started
