@@ -10,18 +10,27 @@ export default function ConvexClientProvider({
 }: {
   children: ReactNode;
 }) {
+  const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
   const convex = useMemo(
     () => (convexUrl ? new ConvexReactClient(convexUrl) : null),
     [convexUrl]
   );
 
+  if (!clerkPublishableKey) {
+    return <>{children}</>;
+  }
+
   if (!convex) {
-    return <ClerkProvider>{children}</ClerkProvider>;
+    return (
+      <ClerkProvider publishableKey={clerkPublishableKey}>
+        {children}
+      </ClerkProvider>
+    );
   }
 
   return (
-    <ClerkProvider>
+    <ClerkProvider publishableKey={clerkPublishableKey}>
       <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
         {children}
       </ConvexProviderWithClerk>
