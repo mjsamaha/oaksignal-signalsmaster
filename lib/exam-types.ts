@@ -136,10 +136,8 @@ export interface ExamQuestionSubmissionInput {
 }
 
 export interface ExamQuestionSubmissionResult {
-  isCorrect: boolean
   questionIndex: number
   nextQuestionIndex: number | null
-  correctCount: number
   answeredCount: number
   totalQuestions: number
   isExamComplete: boolean
@@ -150,7 +148,6 @@ export interface ExamAttemptRuntimeProgress {
   status: "started" | "completed" | "abandoned"
   currentQuestionIndex: number | null
   answeredCount: number
-  correctCount: number
   totalQuestions: number
   remainingCount?: number
   completionPercent?: number

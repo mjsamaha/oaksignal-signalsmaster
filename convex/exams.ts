@@ -578,7 +578,6 @@ export const getAttemptRuntimeProgress = query({
     const questions = await getAttemptQuestions(ctx, args.examAttemptId);
     const totalQuestions = questions.length;
     const answeredCount = questions.filter((question) => question.userAnswer !== null).length;
-    const correctCount = questions.filter((question) => question.isCorrect === true).length;
     const currentQuestionIndex = getCurrentQuestionIndex(questions);
     const remainingCount = Math.max(0, totalQuestions - answeredCount);
     const completionPercent = totalQuestions > 0
@@ -595,7 +594,6 @@ export const getAttemptRuntimeProgress = query({
       status: attempt.status,
       totalQuestions,
       answeredCount,
-      correctCount,
       currentQuestionIndex,
       remainingCount,
       completionPercent,
@@ -943,10 +941,8 @@ export const submitExamAnswer = mutation({
     });
 
     return {
-      isCorrect,
       questionIndex: args.questionIndex,
       nextQuestionIndex,
-      correctCount,
       answeredCount,
       totalQuestions,
       isExamComplete,

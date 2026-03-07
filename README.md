@@ -147,6 +147,8 @@ Pre-push helper flags:
   └── ...
 /docs
   └── ...             # Detailed project documentation
+/specs
+   └── ...             # Engineering specs and implementation baselines
 /lib
   └── ...             # Utilities and mock data
 /public               # Static assets (Flags, Icons)
