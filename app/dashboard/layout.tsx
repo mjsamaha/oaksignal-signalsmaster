@@ -2,6 +2,8 @@ import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { UserjotWidget } from "@/components/userjot-widget"
 import { Toaster } from "@/components/ui/toaster"
 
+export const dynamic = "force-dynamic"
+
 interface DashboardLayoutProps {
   children: React.ReactNode
 }

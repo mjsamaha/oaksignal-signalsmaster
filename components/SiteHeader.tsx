@@ -18,6 +18,7 @@ const navLinks = [
 ];
 
 export function SiteHeader() {
+  const clerkEnabled = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -73,26 +74,43 @@ export function SiteHeader() {
         {/* Desktop Auth Buttons */}
         <div className="hidden md:flex items-center gap-4">
           <ModeToggle />
-          <SignedOut>
-            <SignInButton mode="modal">
-              <Button variant="ghost" size="sm">
-                Log In
-              </Button>
-            </SignInButton>
-            <SignUpButton mode="modal">
-              <Button size="sm">
-                Sign Up
-              </Button>
-            </SignUpButton>
-          </SignedOut>
-          <SignedIn>
-            <Link href="/dashboard">
-              <Button variant="ghost" size="sm">
-                Dashboard
-              </Button>
-            </Link>
-            <UserButton />
-          </SignedIn>
+          {clerkEnabled ? (
+            <>
+              <SignedOut>
+                <SignInButton mode="modal">
+                  <Button variant="ghost" size="sm">
+                    Log In
+                  </Button>
+                </SignInButton>
+                <SignUpButton mode="modal">
+                  <Button size="sm">
+                    Sign Up
+                  </Button>
+                </SignUpButton>
+              </SignedOut>
+              <SignedIn>
+                <Link href="/dashboard">
+                  <Button variant="ghost" size="sm">
+                    Dashboard
+                  </Button>
+                </Link>
+                <UserButton />
+              </SignedIn>
+            </>
+          ) : (
+            <>
+              <Link href="/login">
+                <Button variant="ghost" size="sm">
+                  Log In
+                </Button>
+              </Link>
+              <Link href="/sign-up">
+                <Button size="sm">
+                  Sign Up
+                </Button>
+              </Link>
+            </>
+          )}
         </div>
 
         {/* Mobile Menu Toggle */}
@@ -130,28 +148,45 @@ export function SiteHeader() {
                 <ModeToggle />
               </div>
               <div className="h-px bg-border my-2" />
-              <SignedOut>
-                <SignInButton mode="modal">
-                  <Button className="w-full" variant="secondary">
-                    Log In
-                  </Button>
-                </SignInButton>
-                <SignUpButton mode="modal">
-                  <Button className="w-full mt-2">
-                    Sign Up
-                  </Button>
-                </SignUpButton>
-              </SignedOut>
-              <SignedIn>
-                <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
-                  <Button className="w-full mb-2">
-                    Dashboard
-                  </Button>
-                </Link>
-                <div className="flex items-center justify-center py-2">
-                  <UserButton />
-                </div>
-              </SignedIn>
+              {clerkEnabled ? (
+                <>
+                  <SignedOut>
+                    <SignInButton mode="modal">
+                      <Button className="w-full" variant="secondary">
+                        Log In
+                      </Button>
+                    </SignInButton>
+                    <SignUpButton mode="modal">
+                      <Button className="w-full mt-2">
+                        Sign Up
+                      </Button>
+                    </SignUpButton>
+                  </SignedOut>
+                  <SignedIn>
+                    <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+                      <Button className="w-full mb-2">
+                        Dashboard
+                      </Button>
+                    </Link>
+                    <div className="flex items-center justify-center py-2">
+                      <UserButton />
+                    </div>
+                  </SignedIn>
+                </>
+              ) : (
+                <>
+                  <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
+                    <Button className="w-full" variant="secondary">
+                      Log In
+                    </Button>
+                  </Link>
+                  <Link href="/sign-up" onClick={() => setMobileMenuOpen(false)}>
+                    <Button className="w-full mt-2">
+                      Sign Up
+                    </Button>
+                  </Link>
+                </>
+              )}
             </nav>
           </motion.div>
         )}

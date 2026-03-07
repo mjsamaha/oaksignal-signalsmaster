@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/mode-toggle"
 
 export function DashboardHeader() {
+  const clerkEnabled = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)
   const user = useQuery(api.users.getCurrentUser);
   const openFeedbackWidget = () => {
     if (typeof window !== "undefined") {
@@ -63,7 +64,7 @@ export function DashboardHeader() {
               </span>
             </div>
           )}
-          <UserButton afterSignOutUrl="/" />
+          {clerkEnabled ? <UserButton afterSignOutUrl="/" /> : null}
         </div>
       </div>
     </header>

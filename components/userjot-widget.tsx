@@ -46,6 +46,13 @@ const USERJOT_OPTIONS: UserjotInitOptions = {
 }
 
 export function UserjotWidget() {
+  const clerkEnabled = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)
+  if (!clerkEnabled) return null
+
+  return <UserjotWidgetWithClerk />
+}
+
+function UserjotWidgetWithClerk() {
   const { isLoaded, isSignedIn, user } = useUser()
   const hasInitialized = useRef(false)
   const identifiedUserId = useRef<string | null>(null)
