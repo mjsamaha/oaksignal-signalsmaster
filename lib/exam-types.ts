@@ -92,3 +92,60 @@ export interface StartExamApiError {
 }
 
 export type StartExamApiResponse = StartExamApiSuccess | StartExamApiError
+
+export type ExamQuestionMode = "learn" | "match"
+export type ExamModeStrategy = "alternating" | "single"
+
+export interface ExamQuestionOption {
+  id: string
+  label: string
+  value: string
+  imagePath?: string
+}
+
+export interface ExamQuestionPublic {
+  questionIndex: number
+  flagKey: string
+  mode: ExamQuestionMode
+  options: ExamQuestionOption[]
+  prompt: {
+    imagePath?: string
+    meaning?: string
+  }
+}
+
+export interface ExamQuestionSubmissionInput {
+  examAttemptId: string
+  questionIndex: number
+  selectedAnswer: string
+}
+
+export interface ExamQuestionSubmissionResult {
+  isCorrect: boolean
+  questionIndex: number
+  nextQuestionIndex: number | null
+  correctCount: number
+  answeredCount: number
+  totalQuestions: number
+  isExamComplete: boolean
+}
+
+export interface ExamAttemptRuntimeProgress {
+  currentQuestionIndex: number
+  answeredCount: number
+  correctCount: number
+  totalQuestions: number
+}
+
+export interface ExamGenerationSnapshot {
+  seed: number
+  questionCount: number
+  modeStrategy: ExamModeStrategy
+  singleMode?: ExamQuestionMode
+  generationStartedAt: number
+  generationCompletedAt: number
+  generationTimeMs: number
+  generationRetryCount: number
+  examChecksum: string
+  generationVersion: number
+}

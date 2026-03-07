@@ -25,6 +25,12 @@ export function getExamStartBlockers(input: ExamStartBlockersInput): string[] {
     blockers.push("Exam is unavailable because no flags are currently loaded.");
   }
 
+  if (input.totalQuestions > 0 && input.totalQuestions < 4) {
+    blockers.push(
+      "Exam is unavailable because at least 4 flags are required for multiple-choice questions."
+    );
+  }
+
   if (input.userPracticeSessions < OFFICIAL_EXAM_MIN_PRACTICE_SESSIONS) {
     blockers.push(
       `Complete at least ${OFFICIAL_EXAM_MIN_PRACTICE_SESSIONS} practice sessions before starting the official exam.`

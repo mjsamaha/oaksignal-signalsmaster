@@ -161,6 +161,43 @@ export default defineSchema({
       passed: v.boolean(),
     })),
 
+    // Question generation metadata for reproducibility and auditability.
+    generationSnapshot: v.optional(v.object({
+      seed: v.number(),
+      questionCount: v.number(),
+      modeStrategy: v.union(v.literal("alternating"), v.literal("single")),
+      singleMode: v.optional(v.union(v.literal("learn"), v.literal("match"))),
+      generationStartedAt: v.number(),
+      generationCompletedAt: v.number(),
+      generationTimeMs: v.number(),
+      generationRetryCount: v.number(),
+      examChecksum: v.string(),
+      generationVersion: v.number(),
+    })),
+
+    // Optional historical copy of flag metadata at generation time.
+    flagSnapshot: v.optional(v.array(v.object({
+      flagId: v.id("flags"),
+      key: v.string(),
+      name: v.string(),
+      meaning: v.string(),
+      imagePath: v.string(),
+      type: v.union(
+        v.literal("flag-letter"),
+        v.literal("flag-number"),
+        v.literal("pennant-number"),
+        v.literal("special-pennant"),
+        v.literal("substitute")
+      ),
+      category: v.string(),
+      order: v.number(),
+      difficulty: v.optional(v.union(
+        v.literal("beginner"),
+        v.literal("intermediate"),
+        v.literal("advanced")
+      )),
+    }))),
+
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -168,4 +205,65 @@ export default defineSchema({
   .index("by_user_startedAt", ["userId", "startedAt"])
   .index("by_user_status", ["userId", "status"])
   .index("by_status_startedAt", ["status", "startedAt"]),
+
+  // Generated official exam question records.
+  examQuestions: defineTable({
+    examAttemptId: v.id("examAttempts"),
+    userId: v.id("users"),
+    questionIndex: v.number(),
+    flagId: v.id("flags"),
+    flagKey: v.string(),
+    mode: v.union(v.literal("learn"), v.literal("match")),
+
+    options: v.array(v.object({
+      id: v.string(),
+      label: v.string(),
+      value: v.string(),
+      imagePath: v.optional(v.string()),
+    })),
+
+    // Server-trusted answer fields.
+    correctAnswer: v.string(),
+    userAnswer: v.union(v.string(), v.null()),
+    answeredAt: v.optional(v.number()),
+    isCorrect: v.optional(v.boolean()),
+
+    // Basic tamper-detection support.
+    checksum: v.string(),
+
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+  .index("by_attempt", ["examAttemptId"])
+  .index("by_attempt_question", ["examAttemptId", "questionIndex"])
+  .index("by_user_attempt", ["userId", "examAttemptId"]),
+
+  // Security and performance audit trail for official exams.
+  examAuditLogs: defineTable({
+    examAttemptId: v.id("examAttempts"),
+    userId: v.id("users"),
+    eventType: v.union(
+      v.literal("generation_started"),
+      v.literal("generation_completed"),
+      v.literal("generation_failed"),
+      v.literal("submission_received"),
+      v.literal("submission_validated"),
+      v.literal("submission_rejected")
+    ),
+    message: v.string(),
+    metadataJson: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+  .index("by_attempt_createdAt", ["examAttemptId", "createdAt"])
+  .index("by_user_createdAt", ["userId", "createdAt"]),
+
+  // Admin-controlled official exam generation settings.
+  examSettings: defineTable({
+    modeStrategy: v.union(v.literal("alternating"), v.literal("single")),
+    singleMode: v.optional(v.union(v.literal("learn"), v.literal("match"))),
+    updatedBy: v.id("users"),
+    updatedAt: v.number(),
+    createdAt: v.number(),
+  })
+  .index("by_updatedAt", ["updatedAt"]),
 });

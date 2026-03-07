@@ -12,6 +12,9 @@ import {
   getExamAcknowledgementErrors,
   getExamStartBlockers,
 } from "./lib/exam_start_validators";
+import { generateExamQuestions, applyExamAttemptToQuestions } from "./lib/exam-generation";
+import { generateExamSeed } from "./lib/exam-randomization";
+import { ExamModeStrategy, ExamQuestionMode } from "./lib/exam-types";
 
 type AuthenticatedCtx = QueryCtx | MutationCtx;
 
@@ -23,6 +26,56 @@ interface ExamStartData {
   latestAttempt: Doc<"examAttempts"> | null;
   hasOfficialAttempt: boolean;
   blockers: string[];
+}
+
+interface ExamGenerationSettings {
+  modeStrategy: ExamModeStrategy;
+  singleMode?: ExamQuestionMode;
+}
+
+async function resolveExamGenerationSettings(ctx: AuthenticatedCtx): Promise<ExamGenerationSettings> {
+  const settings = await ctx.db
+    .query("examSettings")
+    .withIndex("by_updatedAt")
+    .order("desc")
+    .first();
+
+  if (!settings) {
+    return {
+      modeStrategy: "alternating",
+    };
+  }
+
+  return {
+    modeStrategy: settings.modeStrategy,
+    singleMode: settings.modeStrategy === "single" ? settings.singleMode : undefined,
+  };
+}
+
+async function insertExamAuditLog(
+  ctx: MutationCtx,
+  input: {
+    examAttemptId: Doc<"examAttempts">["_id"];
+    userId: Doc<"users">["_id"];
+    eventType:
+      | "generation_started"
+      | "generation_completed"
+      | "generation_failed"
+      | "submission_received"
+      | "submission_validated"
+      | "submission_rejected";
+    message: string;
+    metadata?: Record<string, unknown>;
+  }
+): Promise<void> {
+  await ctx.db.insert("examAuditLogs", {
+    examAttemptId: input.examAttemptId,
+    userId: input.userId,
+    eventType: input.eventType,
+    message: input.message,
+    metadataJson: input.metadata ? JSON.stringify(input.metadata) : undefined,
+    createdAt: Date.now(),
+  });
 }
 
 async function getAuthenticatedUser(ctx: AuthenticatedCtx): Promise<Doc<"users"> | null> {
@@ -167,11 +220,59 @@ export const startOfficialExamAttempt = mutation({
 
     const now = Date.now();
     const examPolicy = buildExamPolicySnapshot(startData.totalQuestions);
+    const generationSettings = await resolveExamGenerationSettings(ctx);
+    const allFlags = await ctx.db
+      .query("flags")
+      .withIndex("by_order")
+      .collect();
+
+    if (allFlags.length < 4) {
+      throw new Error(
+        "Exam is unavailable because at least 4 flags are required for multiple-choice questions."
+      );
+    }
+
+    const attemptNumber = (startData.latestAttempt?.attemptNumber ?? 0) + 1;
+    const seed = generateExamSeed({
+      now,
+      attemptNumber,
+      userId: user._id,
+    });
+
+    const generationStartedAt = Date.now();
+    let generationRetryCount = 0;
+    let generated:
+      | ReturnType<typeof generateExamQuestions>
+      | null = null;
+    let lastGenerationError: string | null = null;
+
+    // Retry once with a slightly modified seed if generation fails.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        generated = generateExamQuestions(allFlags, {
+          modeStrategy: generationSettings.modeStrategy,
+          singleMode: generationSettings.singleMode,
+          seed: seed + attempt,
+          generationVersion: 1,
+        });
+        generationRetryCount = attempt;
+        break;
+      } catch (error) {
+        lastGenerationError = error instanceof Error ? error.message : "Unknown generation error";
+      }
+    }
+
+    if (!generated) {
+      throw new Error(lastGenerationError ?? "Failed to generate official exam questions.");
+    }
+
+    const generationCompletedAt = Date.now();
+    const generationTimeMs = generationCompletedAt - generationStartedAt;
 
     const examAttemptId = await ctx.db.insert("examAttempts", {
       userId: user._id,
       status: "started",
-      attemptNumber: (startData.latestAttempt?.attemptNumber ?? 0) + 1,
+      attemptNumber,
       rulesAcknowledgedAt: now,
       readinessAcknowledgedAt: now,
       rulesViewDurationMs: args.rulesViewDurationMs,
@@ -189,9 +290,50 @@ export const startOfficialExamAttempt = mutation({
         browserSupported: args.browserSupported ?? false,
         stableInternetConfirmed: args.stableInternetConfirmed,
       },
+      generationSnapshot: {
+        ...generated.generationSnapshot,
+        generationStartedAt,
+        generationCompletedAt,
+        generationTimeMs,
+        generationRetryCount,
+      },
+      flagSnapshot: generated.flagSnapshot,
       startedAt: now,
       createdAt: now,
       updatedAt: now,
+    });
+
+    await insertExamAuditLog(ctx, {
+      examAttemptId,
+      userId: user._id,
+      eventType: "generation_started",
+      message: "Official exam question generation started.",
+      metadata: {
+        seed: generated.generationSnapshot.seed,
+        attemptNumber,
+      },
+    });
+
+    const questions = applyExamAttemptToQuestions(generated.questions, examAttemptId, user._id);
+    for (const question of questions) {
+      await ctx.db.insert("examQuestions", {
+        ...question,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    await insertExamAuditLog(ctx, {
+      examAttemptId,
+      userId: user._id,
+      eventType: "generation_completed",
+      message: "Official exam question generation completed.",
+      metadata: {
+        generationTimeMs,
+        questionCount: questions.length,
+        retryCount: generationRetryCount,
+        examChecksum: generated.generationSnapshot.examChecksum,
+      },
     });
 
     return {
