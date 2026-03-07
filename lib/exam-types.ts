@@ -73,6 +73,13 @@ export interface ExamAttemptDetail {
     browserSupported: boolean
     stableInternetConfirmed: boolean
   }
+  generationSnapshot: ExamGenerationSnapshot | null
+  result: {
+    totalQuestions: number
+    correctCount: number
+    scorePercent: number
+    passed: boolean
+  } | null
 }
 
 export interface StartExamApiSuccess {
@@ -131,10 +138,15 @@ export interface ExamQuestionSubmissionResult {
 }
 
 export interface ExamAttemptRuntimeProgress {
-  currentQuestionIndex: number
+  examAttemptId: string
+  status: "started" | "completed" | "abandoned"
+  currentQuestionIndex: number | null
   answeredCount: number
   correctCount: number
   totalQuestions: number
+  startedAt: number
+  completedAt: number | null
+  generationSnapshot: ExamGenerationSnapshot | null
 }
 
 export interface ExamGenerationSnapshot {

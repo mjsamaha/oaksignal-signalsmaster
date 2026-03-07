@@ -1,16 +1,23 @@
 "use client"
 
 import Link from "next/link"
-import { useQuery } from "convex/react"
+import { useMutation, useQuery } from "convex/react"
 import { formatDistanceToNow } from "date-fns"
 import { ClipboardCheck, Clock3, Lock, ShieldCheck } from "lucide-react"
 
 import { Id } from "@/convex/_generated/dataModel"
 import { api } from "@/convex/_generated/api"
-import { ExamAttemptDetail } from "@/lib/exam-types"
+import {
+  ExamAttemptDetail,
+  ExamAttemptRuntimeProgress,
+  ExamQuestionPublic,
+  ExamQuestionSubmissionResult,
+} from "@/lib/exam-types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { ExamQuestionInterface } from "@/components/exam"
+import { useExamImagePreload } from "@/hooks/use-exam-image-preload"
 
 interface ExamAttemptClientProps {
   attemptId: Id<"examAttempts">
@@ -21,8 +28,23 @@ export function ExamAttemptClient({ attemptId }: ExamAttemptClientProps) {
     | ExamAttemptDetail
     | null
     | undefined
+  const runtimeProgress = useQuery(api.exams.getAttemptRuntimeProgress, {
+    examAttemptId: attemptId,
+  }) as ExamAttemptRuntimeProgress | null | undefined
+  const currentQuestion = useQuery(api.exams.getCurrentAttemptQuestion, {
+    examAttemptId: attemptId,
+  }) as ExamQuestionPublic | null | undefined
+  const preload = useQuery(api.exams.getAttemptPreload, {
+    examAttemptId: attemptId,
+  }) as { currentQuestionImages: string[]; nextQuestionImages: string[] } | null | undefined
+  const submitExamAnswer = useMutation(api.exams.submitExamAnswer)
 
-  if (attempt === undefined) {
+  useExamImagePreload({
+    currentQuestionImages: preload?.currentQuestionImages,
+    nextQuestionImages: preload?.nextQuestionImages,
+  })
+
+  if (attempt === undefined || runtimeProgress === undefined || currentQuestion === undefined) {
     return (
       <div className="container mx-auto max-w-4xl space-y-6 py-6">
         <Card>
@@ -39,7 +61,7 @@ export function ExamAttemptClient({ attemptId }: ExamAttemptClientProps) {
     )
   }
 
-  if (attempt === null) {
+  if (attempt === null || runtimeProgress === null) {
     return (
       <div className="container mx-auto max-w-4xl space-y-6 py-6">
         <Card>
@@ -57,6 +79,17 @@ export function ExamAttemptClient({ attemptId }: ExamAttemptClientProps) {
         </Card>
       </div>
     )
+  }
+
+  const handleSubmitAnswer = async (input: {
+    questionIndex: number
+    selectedAnswer: string
+  }): Promise<ExamQuestionSubmissionResult> => {
+    return submitExamAnswer({
+      examAttemptId: attemptId,
+      questionIndex: input.questionIndex,
+      selectedAnswer: input.selectedAnswer,
+    }) as Promise<ExamQuestionSubmissionResult>
   }
 
   return (
@@ -96,28 +129,75 @@ export function ExamAttemptClient({ attemptId }: ExamAttemptClientProps) {
               {attempt.policySnapshot.passThresholdPercent}% pass threshold, no pause/resume.
             </span>
           </div>
+          {attempt.generationSnapshot && (
+            <div className="flex items-center gap-2">
+              <Clock3 className="h-4 w-4 text-primary" />
+              <span>
+                Questions generated in {attempt.generationSnapshot.generationTimeMs}ms with
+                seed {attempt.generationSnapshot.seed}.
+              </span>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Next Step</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Official exam question delivery will be connected in the next implementation batch.
-            This route confirms your secure attempt initialization and ownership scope.
-          </p>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Button asChild>
-              <Link href="/dashboard/exam">Back to Exam Start</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href="/dashboard/practice">Practice Mode</Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {runtimeProgress.status === "completed" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Exam Completed</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              You completed this official exam{" "}
+              {attempt.completedAt
+                ? formatDistanceToNow(attempt.completedAt, { addSuffix: true })
+                : "recently"}
+              .
+            </p>
+            {attempt.result && (
+              <div className="rounded-md border bg-muted/40 p-4 text-sm">
+                <p>Score: <span className="font-semibold">{attempt.result.scorePercent}%</span></p>
+                <p>
+                  Correct answers: <span className="font-semibold">
+                    {attempt.result.correctCount}/{attempt.result.totalQuestions}
+                  </span>
+                </p>
+                <p>Status: <span className="font-semibold">{attempt.result.passed ? "Passed" : "Not Passed"}</span></p>
+              </div>
+            )}
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button asChild>
+                <Link href="/dashboard/exam">Back to Exam Start</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/dashboard/practice">Practice Mode</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : currentQuestion ? (
+        <ExamQuestionInterface
+          progress={{
+            currentQuestionIndex: runtimeProgress.currentQuestionIndex ?? 0,
+            answeredCount: runtimeProgress.answeredCount,
+            correctCount: runtimeProgress.correctCount,
+            totalQuestions: runtimeProgress.totalQuestions,
+          }}
+          question={currentQuestion}
+          onSubmitAnswer={handleSubmitAnswer}
+        />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Preparing question delivery</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Your exam is active, but question data is not yet available. Please refresh.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

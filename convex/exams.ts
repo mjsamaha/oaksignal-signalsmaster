@@ -15,6 +15,7 @@ import {
 import { generateExamQuestions, applyExamAttemptToQuestions } from "./lib/exam-generation";
 import { generateExamSeed } from "./lib/exam-randomization";
 import { ExamModeStrategy, ExamQuestionMode } from "./lib/exam-types";
+import { buildQuestionChecksum } from "./lib/exam-checksum";
 
 type AuthenticatedCtx = QueryCtx | MutationCtx;
 
@@ -76,6 +77,56 @@ async function insertExamAuditLog(
     metadataJson: input.metadata ? JSON.stringify(input.metadata) : undefined,
     createdAt: Date.now(),
   });
+}
+
+async function getOwnedAttempt(
+  ctx: AuthenticatedCtx,
+  userId: Doc<"users">["_id"],
+  examAttemptId: Doc<"examAttempts">["_id"]
+): Promise<Doc<"examAttempts"> | null> {
+  const attempt = await ctx.db.get(examAttemptId);
+  if (!attempt || attempt.userId !== userId) {
+    return null;
+  }
+  return attempt;
+}
+
+async function getAttemptQuestions(
+  ctx: AuthenticatedCtx,
+  examAttemptId: Doc<"examAttempts">["_id"]
+): Promise<Doc<"examQuestions">[]> {
+  return ctx.db
+    .query("examQuestions")
+    .withIndex("by_attempt", (q) => q.eq("examAttemptId", examAttemptId))
+    .collect();
+}
+
+function getCurrentQuestionIndex(questions: Doc<"examQuestions">[]): number | null {
+  const sorted = [...questions].sort((a, b) => a.questionIndex - b.questionIndex);
+  const next = sorted.find((question) => question.userAnswer === null);
+  return next ? next.questionIndex : null;
+}
+
+async function resolveFlagPrompt(
+  ctx: AuthenticatedCtx,
+  attempt: Doc<"examAttempts">,
+  question: Doc<"examQuestions">
+): Promise<{ imagePath?: string; meaning?: string }> {
+  const flag = await ctx.db.get(question.flagId);
+  if (flag) {
+    return question.mode === "learn"
+      ? { imagePath: flag.imagePath }
+      : { meaning: flag.meaning };
+  }
+
+  const snapshotFlag = attempt.flagSnapshot?.find((item) => item.flagId === question.flagId);
+  if (!snapshotFlag) {
+    throw new Error("Unable to resolve question prompt for this exam attempt.");
+  }
+
+  return question.mode === "learn"
+    ? { imagePath: snapshotFlag.imagePath }
+    : { meaning: snapshotFlag.meaning };
 }
 
 async function getAuthenticatedUser(ctx: AuthenticatedCtx): Promise<Doc<"users"> | null> {
@@ -218,7 +269,7 @@ export const startOfficialExamAttempt = mutation({
       throw new Error(acknowledgementErrors[0]);
     }
 
-    const now = Date.now();
+    const requestReceivedAt = Date.now();
     const examPolicy = buildExamPolicySnapshot(startData.totalQuestions);
     const generationSettings = await resolveExamGenerationSettings(ctx);
     const allFlags = await ctx.db
@@ -234,7 +285,7 @@ export const startOfficialExamAttempt = mutation({
 
     const attemptNumber = (startData.latestAttempt?.attemptNumber ?? 0) + 1;
     const seed = generateExamSeed({
-      now,
+      now: requestReceivedAt,
       attemptNumber,
       userId: user._id,
     });
@@ -268,13 +319,14 @@ export const startOfficialExamAttempt = mutation({
 
     const generationCompletedAt = Date.now();
     const generationTimeMs = generationCompletedAt - generationStartedAt;
+    const examStartedAt = generationCompletedAt;
 
     const examAttemptId = await ctx.db.insert("examAttempts", {
       userId: user._id,
       status: "started",
       attemptNumber,
-      rulesAcknowledgedAt: now,
-      readinessAcknowledgedAt: now,
+      rulesAcknowledgedAt: requestReceivedAt,
+      readinessAcknowledgedAt: requestReceivedAt,
       rulesViewDurationMs: args.rulesViewDurationMs,
       policySnapshot: examPolicy,
       prerequisiteSnapshot: {
@@ -298,9 +350,9 @@ export const startOfficialExamAttempt = mutation({
         generationRetryCount,
       },
       flagSnapshot: generated.flagSnapshot,
-      startedAt: now,
-      createdAt: now,
-      updatedAt: now,
+      startedAt: examStartedAt,
+      createdAt: examStartedAt,
+      updatedAt: examStartedAt,
     });
 
     await insertExamAuditLog(ctx, {
@@ -318,8 +370,8 @@ export const startOfficialExamAttempt = mutation({
     for (const question of questions) {
       await ctx.db.insert("examQuestions", {
         ...question,
-        createdAt: now,
-        updatedAt: now,
+        createdAt: examStartedAt,
+        updatedAt: examStartedAt,
       });
     }
 
@@ -338,7 +390,7 @@ export const startOfficialExamAttempt = mutation({
 
     return {
       examAttemptId,
-      startedAt: now,
+      startedAt: examStartedAt,
     };
   },
 });
@@ -376,6 +428,306 @@ export const getAttemptHistory = query({
   },
 });
 
+export const getAttemptRuntimeProgress = query({
+  args: {
+    examAttemptId: v.id("examAttempts"),
+  },
+  handler: async (ctx, args) => {
+    const user = await getAuthenticatedUser(ctx);
+    if (!user) {
+      return null;
+    }
+
+    const attempt = await getOwnedAttempt(ctx, user._id, args.examAttemptId);
+    if (!attempt) {
+      return null;
+    }
+
+    const questions = await getAttemptQuestions(ctx, args.examAttemptId);
+    const totalQuestions = questions.length;
+    const answeredCount = questions.filter((question) => question.userAnswer !== null).length;
+    const correctCount = questions.filter((question) => question.isCorrect === true).length;
+    const currentQuestionIndex = getCurrentQuestionIndex(questions);
+
+    return {
+      examAttemptId: attempt._id,
+      status: attempt.status,
+      totalQuestions,
+      answeredCount,
+      correctCount,
+      currentQuestionIndex,
+      startedAt: attempt.startedAt,
+      completedAt: attempt.completedAt ?? null,
+      generationSnapshot: attempt.generationSnapshot ?? null,
+    };
+  },
+});
+
+export const getCurrentAttemptQuestion = query({
+  args: {
+    examAttemptId: v.id("examAttempts"),
+  },
+  handler: async (ctx, args) => {
+    const user = await getAuthenticatedUser(ctx);
+    if (!user) {
+      return null;
+    }
+
+    const attempt = await getOwnedAttempt(ctx, user._id, args.examAttemptId);
+    if (!attempt || attempt.status !== "started") {
+      return null;
+    }
+
+    const questions = await getAttemptQuestions(ctx, args.examAttemptId);
+    const nextQuestionIndex = getCurrentQuestionIndex(questions);
+    if (nextQuestionIndex === null) {
+      return null;
+    }
+
+    const question = questions.find((item) => item.questionIndex === nextQuestionIndex);
+    if (!question) {
+      throw new Error("Current exam question was not found.");
+    }
+
+    const prompt = await resolveFlagPrompt(ctx, attempt, question);
+
+    return {
+      questionIndex: question.questionIndex,
+      flagKey: question.flagKey,
+      mode: question.mode,
+      options: question.options,
+      prompt,
+    };
+  },
+});
+
+export const getAttemptPreload = query({
+  args: {
+    examAttemptId: v.id("examAttempts"),
+  },
+  handler: async (ctx, args) => {
+    const user = await getAuthenticatedUser(ctx);
+    if (!user) {
+      return null;
+    }
+
+    const attempt = await getOwnedAttempt(ctx, user._id, args.examAttemptId);
+    if (!attempt || attempt.status !== "started") {
+      return null;
+    }
+
+    const questions = (await getAttemptQuestions(ctx, args.examAttemptId))
+      .sort((a, b) => a.questionIndex - b.questionIndex);
+    const currentIndex = getCurrentQuestionIndex(questions);
+    if (currentIndex === null) {
+      return {
+        currentQuestionImages: [] as string[],
+        nextQuestionImages: [] as string[],
+      };
+    }
+
+    const currentQuestion = questions.find((question) => question.questionIndex === currentIndex);
+    const nextQuestion = questions.find((question) => question.questionIndex === currentIndex + 1);
+
+    const collectImages = async (
+      question: Doc<"examQuestions"> | undefined
+    ): Promise<string[]> => {
+      if (!question) {
+        return [];
+      }
+
+      const images = new Set<string>();
+      if (question.mode === "learn") {
+        const prompt = await resolveFlagPrompt(ctx, attempt, question);
+        if (prompt.imagePath) {
+          images.add(prompt.imagePath);
+        }
+      }
+
+      for (const option of question.options) {
+        if (option.imagePath) {
+          images.add(option.imagePath);
+        }
+      }
+      return [...images];
+    };
+
+    return {
+      currentQuestionImages: await collectImages(currentQuestion),
+      nextQuestionImages: await collectImages(nextQuestion),
+    };
+  },
+});
+
+export const submitExamAnswer = mutation({
+  args: {
+    examAttemptId: v.id("examAttempts"),
+    questionIndex: v.number(),
+    selectedAnswer: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getAuthenticatedUser(ctx);
+    if (!user) {
+      throw new Error("Must be authenticated to submit official exam answers.");
+    }
+
+    const attempt = await getOwnedAttempt(ctx, user._id, args.examAttemptId);
+    if (!attempt) {
+      throw new Error("Exam attempt not found or access denied.");
+    }
+
+    if (attempt.status !== "started") {
+      throw new Error("Exam attempt is no longer active.");
+    }
+
+    await insertExamAuditLog(ctx, {
+      examAttemptId: args.examAttemptId,
+      userId: user._id,
+      eventType: "submission_received",
+      message: "Official exam answer submission received.",
+      metadata: {
+        questionIndex: args.questionIndex,
+      },
+    });
+
+    const questions = await getAttemptQuestions(ctx, args.examAttemptId);
+    const expectedQuestionIndex = getCurrentQuestionIndex(questions);
+    if (expectedQuestionIndex === null) {
+      throw new Error("Exam has already been completed.");
+    }
+
+    if (args.questionIndex !== expectedQuestionIndex) {
+      await insertExamAuditLog(ctx, {
+        examAttemptId: args.examAttemptId,
+        userId: user._id,
+        eventType: "submission_rejected",
+        message: "Rejected out-of-order question submission.",
+        metadata: {
+          expectedQuestionIndex,
+          receivedQuestionIndex: args.questionIndex,
+        },
+      });
+      throw new Error(
+        `Question index mismatch. Expected ${expectedQuestionIndex}, got ${args.questionIndex}.`
+      );
+    }
+
+    const question = await ctx.db
+      .query("examQuestions")
+      .withIndex("by_attempt_question", (q) =>
+        q.eq("examAttemptId", args.examAttemptId).eq("questionIndex", args.questionIndex)
+      )
+      .first();
+
+    if (!question) {
+      throw new Error("Exam question not found.");
+    }
+
+    if (question.userAnswer !== null) {
+      throw new Error("This question has already been answered.");
+    }
+
+    const optionIds = question.options.map((option) => option.id);
+    if (!optionIds.includes(args.selectedAnswer)) {
+      await insertExamAuditLog(ctx, {
+        examAttemptId: args.examAttemptId,
+        userId: user._id,
+        eventType: "submission_rejected",
+        message: "Rejected submission with invalid option id.",
+        metadata: {
+          questionIndex: args.questionIndex,
+          selectedAnswer: args.selectedAnswer,
+        },
+      });
+      throw new Error("Invalid answer option submitted.");
+    }
+
+    const expectedChecksum = buildQuestionChecksum({
+      examAttemptId: "pending",
+      questionIndex: question.questionIndex,
+      flagKey: question.flagKey,
+      mode: question.mode,
+      options: question.options,
+      correctAnswer: question.correctAnswer,
+    });
+
+    if (question.checksum !== expectedChecksum) {
+      await insertExamAuditLog(ctx, {
+        examAttemptId: args.examAttemptId,
+        userId: user._id,
+        eventType: "submission_rejected",
+        message: "Rejected submission due to question checksum mismatch.",
+        metadata: {
+          questionIndex: args.questionIndex,
+        },
+      });
+      throw new Error("Exam question integrity check failed.");
+    }
+
+    const now = Date.now();
+    const isCorrect = args.selectedAnswer === question.correctAnswer;
+
+    await ctx.db.patch(question._id, {
+      userAnswer: args.selectedAnswer,
+      answeredAt: now,
+      isCorrect,
+      updatedAt: now,
+    });
+
+    const updatedQuestions = await getAttemptQuestions(ctx, args.examAttemptId);
+    const totalQuestions = updatedQuestions.length;
+    const answeredCount = updatedQuestions.filter((item) => item.userAnswer !== null).length;
+    const correctCount = updatedQuestions.filter((item) => item.isCorrect === true).length;
+    const nextQuestionIndex = getCurrentQuestionIndex(updatedQuestions);
+    const isExamComplete = nextQuestionIndex === null;
+
+    if (isExamComplete) {
+      const scorePercent = totalQuestions > 0
+        ? Math.round((correctCount / totalQuestions) * 100)
+        : 0;
+      const passed = scorePercent >= attempt.policySnapshot.passThresholdPercent;
+
+      await ctx.db.patch(attempt._id, {
+        status: "completed",
+        completedAt: now,
+        immutableAt: now,
+        result: {
+          totalQuestions,
+          correctCount,
+          scorePercent,
+          passed,
+        },
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.patch(attempt._id, {
+        updatedAt: now,
+      });
+    }
+
+    await insertExamAuditLog(ctx, {
+      examAttemptId: args.examAttemptId,
+      userId: user._id,
+      eventType: "submission_validated",
+      message: "Official exam answer accepted and validated.",
+      metadata: {
+        questionIndex: args.questionIndex,
+        isCorrect,
+      },
+    });
+
+    return {
+      isCorrect,
+      questionIndex: args.questionIndex,
+      nextQuestionIndex,
+      correctCount,
+      answeredCount,
+      totalQuestions,
+      isExamComplete,
+    };
+  },
+});
+
 export const getAttemptById = query({
   args: {
     examAttemptId: v.id("examAttempts"),
@@ -403,6 +755,8 @@ export const getAttemptById = query({
       policySnapshot: attempt.policySnapshot,
       prerequisiteSnapshot: attempt.prerequisiteSnapshot,
       systemSnapshot: attempt.systemSnapshot,
+      generationSnapshot: attempt.generationSnapshot ?? null,
+      result: attempt.result ?? null,
     };
   },
 });
