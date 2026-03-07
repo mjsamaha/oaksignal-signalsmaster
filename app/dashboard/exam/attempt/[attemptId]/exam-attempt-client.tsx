@@ -1,9 +1,9 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useMutation, useQuery } from "convex/react"
 import { formatDistanceToNow } from "date-fns"
-import { ClipboardCheck, Clock3, Lock, ShieldCheck } from "lucide-react"
 
 import { Id } from "@/convex/_generated/dataModel"
 import { api } from "@/convex/_generated/api"
@@ -16,7 +16,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ExamQuestionInterface } from "@/components/exam"
+import { ExamInProgressHeader, ExamQuestionInterface } from "@/components/exam"
 import { useExamImagePreload } from "@/hooks/use-exam-image-preload"
 
 interface ExamAttemptClientProps {
@@ -24,6 +24,7 @@ interface ExamAttemptClientProps {
 }
 
 export function ExamAttemptClient({ attemptId }: ExamAttemptClientProps) {
+  const router = useRouter()
   const attempt = useQuery(api.exams.getAttemptById, { examAttemptId: attemptId }) as
     | ExamAttemptDetail
     | null
@@ -85,63 +86,54 @@ export function ExamAttemptClient({ attemptId }: ExamAttemptClientProps) {
     questionIndex: number
     selectedAnswer: string
   }): Promise<ExamQuestionSubmissionResult> => {
+    if (!attempt.sessionToken) {
+      throw new Error("Session validation is not ready. Please refresh the exam page.")
+    }
+
     return submitExamAnswer({
       examAttemptId: attemptId,
       questionIndex: input.questionIndex,
       selectedAnswer: input.selectedAnswer,
+      sessionToken: attempt.sessionToken,
     }) as Promise<ExamQuestionSubmissionResult>
   }
 
   return (
     <div className="container mx-auto max-w-4xl space-y-6 py-6">
-      <div className="space-y-2">
-        <Badge variant="destructive" className="uppercase tracking-wide">
-          Official Examination
-        </Badge>
-        <h1 className="text-3xl font-bold tracking-tight">Attempt #{attempt.attemptNumber}</h1>
-        <p className="text-muted-foreground">
-          Exam attempt initialized {formatDistanceToNow(attempt.startedAt, { addSuffix: true })}.
-        </p>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <ShieldCheck className="h-5 w-5" />
-            Attempt Status
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <ClipboardCheck className="h-4 w-4 text-primary" />
-            <span>Status: <span className="font-semibold text-foreground">{attempt.status}</span></span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Clock3 className="h-4 w-4 text-primary" />
-            <span>
-              Rules reviewed for {Math.round(attempt.rulesViewDurationMs / 1000)} seconds before start.
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Lock className="h-4 w-4 text-primary" />
-            <span>
-              Policy locked at start: {attempt.policySnapshot.totalQuestions} questions,{" "}
-              {attempt.policySnapshot.passThresholdPercent}% pass threshold, no pause/resume.
-            </span>
-          </div>
-          {attempt.generationSnapshot && (
-            <div className="flex items-center gap-2">
-              <Clock3 className="h-4 w-4 text-primary" />
-              <span>
-                Questions generated in {attempt.generationSnapshot.generationTimeMs}ms with
-                seed {attempt.generationSnapshot.seed}.
-              </span>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       {runtimeProgress.status === "completed" ? (
+        <div className="space-y-2">
+          <Badge variant="destructive" className="uppercase tracking-wide">
+            Official Examination
+          </Badge>
+          <h1 className="text-3xl font-bold tracking-tight">Attempt #{attempt.attemptNumber}</h1>
+          <p className="text-muted-foreground">
+            Exam attempt initialized {formatDistanceToNow(attempt.startedAt, { addSuffix: true })}.
+          </p>
+        </div>
+      ) : (
+        <ExamInProgressHeader attemptNumber={attempt.attemptNumber} />
+      )}
+
+      {runtimeProgress.status !== "completed" && !attempt.sessionToken ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Session validation required</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              A secure exam session token is required before you can continue.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button type="button" onClick={() => router.refresh()}>
+                Refresh Session
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/dashboard/exam">Return to Exam Start</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : runtimeProgress.status === "completed" ? (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Exam Completed</CardTitle>
@@ -178,10 +170,13 @@ export function ExamAttemptClient({ attemptId }: ExamAttemptClientProps) {
       ) : currentQuestion ? (
         <ExamQuestionInterface
           progress={{
-            currentQuestionIndex: runtimeProgress.currentQuestionIndex ?? 0,
             answeredCount: runtimeProgress.answeredCount,
-            correctCount: runtimeProgress.correctCount,
+            remainingCount: runtimeProgress.remainingCount ?? (
+              runtimeProgress.totalQuestions - runtimeProgress.answeredCount
+            ),
             totalQuestions: runtimeProgress.totalQuestions,
+            completionPercent: runtimeProgress.completionPercent ?? 0,
+            elapsedMs: runtimeProgress.elapsedMs ?? 0,
           }}
           question={currentQuestion}
           onSubmitAnswer={handleSubmitAnswer}

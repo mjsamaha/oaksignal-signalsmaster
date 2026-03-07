@@ -60,8 +60,9 @@ export interface ExamAttemptDetail {
   status: "started" | "completed" | "abandoned"
   startedAt: number
   completedAt: number | null
-  sessionIssuedAt?: number
-  sessionExpiresAt?: number
+  sessionIssuedAt?: number | null
+  sessionExpiresAt?: number | null
+  sessionToken?: string | null
   rulesAcknowledgedAt: number
   readinessAcknowledgedAt: number
   rulesViewDurationMs: number

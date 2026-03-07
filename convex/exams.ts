@@ -14,8 +14,13 @@ import {
 } from "./lib/exam_start_validators";
 import { generateExamQuestions, applyExamAttemptToQuestions } from "./lib/exam-generation";
 import { generateExamSeed } from "./lib/exam-randomization";
-import { ExamModeStrategy, ExamQuestionMode } from "./lib/exam-types";
+import { ExamAuditEventType, ExamModeStrategy, ExamQuestionMode } from "./lib/exam-types";
 import { buildQuestionChecksum } from "./lib/exam-checksum";
+import {
+  deriveExamSessionToken,
+  issueExamSessionToken,
+  validateExamSessionToken,
+} from "./lib/exam-session-token";
 
 type AuthenticatedCtx = QueryCtx | MutationCtx;
 
@@ -69,13 +74,7 @@ async function insertExamAuditLog(
   input: {
     examAttemptId: Doc<"examAttempts">["_id"];
     userId: Doc<"users">["_id"];
-    eventType:
-      | "generation_started"
-      | "generation_completed"
-      | "generation_failed"
-      | "submission_received"
-      | "submission_validated"
-      | "submission_rejected";
+    eventType: ExamAuditEventType;
     message: string;
     metadata?: Record<string, unknown>;
   }
@@ -116,6 +115,13 @@ function getCurrentQuestionIndex(questions: Doc<"examQuestions">[]): number | nu
   const sorted = [...questions].sort((a, b) => a.questionIndex - b.questionIndex);
   const next = sorted.find((question) => question.userAnswer === null);
   return next ? next.questionIndex : null;
+}
+
+function getLastAnsweredAt(questions: Doc<"examQuestions">[]): number | null {
+  return questions
+    .map((question) => question.answeredAt ?? null)
+    .filter((answeredAt): answeredAt is number => answeredAt !== null)
+    .sort((a, b) => b - a)[0] ?? null;
 }
 
 async function resolveFlagPrompt(
@@ -434,6 +440,19 @@ export const startOfficialExamAttempt = mutation({
       updatedAt: examStartedAt,
     });
 
+    const sessionToken = await issueExamSessionToken({
+      examAttemptId: examAttemptId,
+      userId: user._id,
+      issuedAt: examStartedAt,
+    });
+
+    await ctx.db.patch(examAttemptId, {
+      sessionTokenHash: sessionToken.tokenHash,
+      sessionIssuedAt: sessionToken.issuedAt,
+      sessionExpiresAt: sessionToken.expiresAt,
+      updatedAt: Date.now(),
+    });
+
     await insertExamAuditLog(ctx, {
       examAttemptId,
       userId: user._id,
@@ -467,9 +486,22 @@ export const startOfficialExamAttempt = mutation({
       },
     });
 
+    await insertExamAuditLog(ctx, {
+      examAttemptId,
+      userId: user._id,
+      eventType: "session_token_issued",
+      message: "Issued exam session token.",
+      metadata: {
+        issuedAt: sessionToken.issuedAt,
+        expiresAt: sessionToken.expiresAt,
+      },
+    });
+
     return {
       examAttemptId,
       startedAt: examStartedAt,
+      sessionToken: sessionToken.token,
+      sessionExpiresAt: sessionToken.expiresAt,
     };
   },
 });
@@ -527,6 +559,15 @@ export const getAttemptRuntimeProgress = query({
     const answeredCount = questions.filter((question) => question.userAnswer !== null).length;
     const correctCount = questions.filter((question) => question.isCorrect === true).length;
     const currentQuestionIndex = getCurrentQuestionIndex(questions);
+    const remainingCount = Math.max(0, totalQuestions - answeredCount);
+    const completionPercent = totalQuestions > 0
+      ? Math.round((answeredCount / totalQuestions) * 100)
+      : 0;
+    const elapsedMs = Math.max(
+      0,
+      (attempt.completedAt ?? Date.now()) - attempt.startedAt
+    );
+    const lastAnsweredAt = getLastAnsweredAt(questions);
 
     return {
       examAttemptId: attempt._id,
@@ -535,6 +576,10 @@ export const getAttemptRuntimeProgress = query({
       answeredCount,
       correctCount,
       currentQuestionIndex,
+      remainingCount,
+      completionPercent,
+      elapsedMs,
+      lastAnsweredAt,
       startedAt: attempt.startedAt,
       completedAt: attempt.completedAt ?? null,
       generationSnapshot: attempt.generationSnapshot ?? null,
@@ -643,6 +688,7 @@ export const submitExamAnswer = mutation({
     examAttemptId: v.id("examAttempts"),
     questionIndex: v.number(),
     selectedAnswer: v.string(),
+    sessionToken: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await getAuthenticatedUser(ctx);
@@ -657,6 +703,43 @@ export const submitExamAnswer = mutation({
 
     if (attempt.status !== "started") {
       throw new Error("Exam attempt is no longer active.");
+    }
+
+    if (attempt.sessionTokenHash && attempt.sessionIssuedAt && attempt.sessionExpiresAt) {
+      if (args.sessionToken) {
+        const tokenValidation = await validateExamSessionToken({
+          token: args.sessionToken,
+          examAttemptId: args.examAttemptId,
+          userId: user._id,
+          issuedAt: attempt.sessionIssuedAt,
+          expiresAt: attempt.sessionExpiresAt,
+          expectedHash: attempt.sessionTokenHash,
+        });
+
+        if (!tokenValidation.valid) {
+          await insertExamAuditLog(ctx, {
+            examAttemptId: args.examAttemptId,
+            userId: user._id,
+            eventType: "session_token_rejected",
+            message: "Rejected submission due to invalid session token.",
+            metadata: {
+              questionIndex: args.questionIndex,
+              reason: tokenValidation.reason ?? "unknown",
+            },
+          });
+          throw new Error("Session validation failed. Please refresh the exam session.");
+        }
+
+        await insertExamAuditLog(ctx, {
+          examAttemptId: args.examAttemptId,
+          userId: user._id,
+          eventType: "session_token_validated",
+          message: "Validated session token for submission.",
+          metadata: {
+            questionIndex: args.questionIndex,
+          },
+        });
+      }
     }
 
     await insertExamAuditLog(ctx, {
@@ -822,12 +905,42 @@ export const getAttemptById = query({
       return null;
     }
 
+    let sessionToken: string | null = null;
+    if (attempt.sessionIssuedAt && attempt.sessionExpiresAt && attempt.sessionTokenHash) {
+      try {
+        const derivedToken = await deriveExamSessionToken({
+          examAttemptId: attempt._id,
+          userId: user._id,
+          issuedAt: attempt.sessionIssuedAt,
+          expiresAt: attempt.sessionExpiresAt,
+        });
+
+        const validation = await validateExamSessionToken({
+          token: derivedToken,
+          examAttemptId: attempt._id,
+          userId: user._id,
+          issuedAt: attempt.sessionIssuedAt,
+          expiresAt: attempt.sessionExpiresAt,
+          expectedHash: attempt.sessionTokenHash,
+        });
+
+        if (validation.valid) {
+          sessionToken = derivedToken;
+        }
+      } catch {
+        sessionToken = null;
+      }
+    }
+
     return {
       examAttemptId: attempt._id,
       attemptNumber: attempt.attemptNumber,
       status: attempt.status,
       startedAt: attempt.startedAt,
       completedAt: attempt.completedAt ?? null,
+      sessionIssuedAt: attempt.sessionIssuedAt ?? null,
+      sessionExpiresAt: attempt.sessionExpiresAt ?? null,
+      sessionToken,
       rulesAcknowledgedAt: attempt.rulesAcknowledgedAt,
       readinessAcknowledgedAt: attempt.readinessAcknowledgedAt,
       rulesViewDurationMs: attempt.rulesViewDurationMs,
@@ -836,6 +949,87 @@ export const getAttemptById = query({
       systemSnapshot: attempt.systemSnapshot,
       generationSnapshot: attempt.generationSnapshot ?? null,
       result: attempt.result ?? null,
+    };
+  },
+});
+
+const CLIENT_SECURITY_EVENT_TYPES = [
+  "connection_lost",
+  "connection_restored",
+  "window_blur",
+  "window_focus",
+  "tab_hidden",
+  "tab_visible",
+  "fullscreen_entered",
+  "fullscreen_exited",
+  "back_navigation_blocked",
+  "restricted_shortcut_blocked",
+  "idle_warning_shown",
+  "idle_timeout_triggered",
+] as const;
+
+export const logExamClientEvent = mutation({
+  args: {
+    examAttemptId: v.id("examAttempts"),
+    eventType: v.union(
+      v.literal("connection_lost"),
+      v.literal("connection_restored"),
+      v.literal("window_blur"),
+      v.literal("window_focus"),
+      v.literal("tab_hidden"),
+      v.literal("tab_visible"),
+      v.literal("fullscreen_entered"),
+      v.literal("fullscreen_exited"),
+      v.literal("back_navigation_blocked"),
+      v.literal("restricted_shortcut_blocked"),
+      v.literal("idle_warning_shown"),
+      v.literal("idle_timeout_triggered")
+    ),
+    message: v.string(),
+    metadataJson: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await getAuthenticatedUser(ctx);
+    if (!user) {
+      throw new Error("Authentication is required.");
+    }
+
+    const attempt = await getOwnedAttempt(ctx, user._id, args.examAttemptId);
+    if (!attempt) {
+      throw new Error("Exam attempt not found or access denied.");
+    }
+
+    if (!CLIENT_SECURITY_EVENT_TYPES.includes(args.eventType)) {
+      throw new Error("Unsupported client security event type.");
+    }
+
+    let parsedMetadata: Record<string, unknown> | undefined;
+    if (args.metadataJson) {
+      if (args.metadataJson.length > 4000) {
+        throw new Error("metadataJson exceeds maximum length.");
+      }
+
+      try {
+        const raw = JSON.parse(args.metadataJson) as unknown;
+        if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+          parsedMetadata = raw as Record<string, unknown>;
+        }
+      } catch {
+        throw new Error("metadataJson must be valid JSON.");
+      }
+    }
+
+    await insertExamAuditLog(ctx, {
+      examAttemptId: attempt._id,
+      userId: user._id,
+      eventType: args.eventType,
+      message: args.message,
+      metadata: parsedMetadata,
+    });
+
+    return {
+      success: true,
+      loggedAt: Date.now(),
     };
   },
 });

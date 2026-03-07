@@ -6,7 +6,6 @@ import { Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { useToast } from "@/hooks/use-toast"
 import {
   ExamQuestionPublic,
   ExamQuestionSubmissionResult,
@@ -15,10 +14,11 @@ import { ExamOptionGrid } from "./exam-option-grid"
 import { ExamProgressHeader } from "./exam-progress-header"
 
 interface ExamRuntimeProgressView {
-  currentQuestionIndex: number
   answeredCount: number
-  correctCount: number
+  remainingCount: number
   totalQuestions: number
+  completionPercent: number
+  elapsedMs: number
 }
 
 interface ExamQuestionInterfaceProps {
@@ -35,9 +35,9 @@ export function ExamQuestionInterface({
   question,
   onSubmitAnswer,
 }: ExamQuestionInterfaceProps) {
-  const { toast } = useToast()
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const canSubmit = useMemo(
     () => selectedAnswer !== null && !isSubmitting,
@@ -50,27 +50,17 @@ export function ExamQuestionInterface({
     }
 
     setIsSubmitting(true)
+    setSubmitError(null)
     try {
-      const result = await onSubmitAnswer({
+      await onSubmitAnswer({
         questionIndex: question.questionIndex,
         selectedAnswer,
       })
 
       setSelectedAnswer(null)
-
-      if (result.isExamComplete) {
-        toast({
-          title: "Exam completed",
-          description: `You answered ${result.correctCount} out of ${result.totalQuestions} correctly.`,
-        })
-      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to submit answer."
-      toast({
-        title: "Submission failed",
-        description: message,
-        variant: "destructive",
-      })
+      setSubmitError(message)
     } finally {
       setIsSubmitting(false)
     }
@@ -79,16 +69,35 @@ export function ExamQuestionInterface({
   return (
     <Card>
       <CardHeader className="space-y-4">
-        <CardTitle className="text-lg">
+        <CardTitle className="text-lg" aria-live="polite">
           Question {question.questionIndex + 1} of {progress.totalQuestions}
         </CardTitle>
+        <div className="flex items-center gap-3 rounded-md border bg-muted/40 p-3">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border text-base font-bold">
+            {question.questionIndex + 1}
+          </span>
+          <p className="text-sm font-medium">Current Question Number</p>
+        </div>
         <ExamProgressHeader
+          currentQuestionNumber={question.questionIndex + 1}
           answeredCount={progress.answeredCount}
-          correctCount={progress.correctCount}
+          remainingCount={progress.remainingCount}
           totalQuestions={progress.totalQuestions}
+          completionPercent={progress.completionPercent}
+          elapsedMs={progress.elapsedMs}
         />
       </CardHeader>
       <CardContent className="space-y-6">
+        {submitError && (
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+          >
+            {submitError}
+          </div>
+        )}
+
         {question.mode === "learn" ? (
           <div className="rounded-md border p-4">
             <p className="mb-3 text-sm text-muted-foreground">Identify this flag:</p>
@@ -123,7 +132,10 @@ export function ExamQuestionInterface({
           mode={question.mode}
           selectedAnswer={selectedAnswer}
           disabled={isSubmitting}
-          onSelect={setSelectedAnswer}
+          onSelect={(optionId) => {
+            setSubmitError(null)
+            setSelectedAnswer(optionId)
+          }}
         />
 
         <div className="flex justify-end">

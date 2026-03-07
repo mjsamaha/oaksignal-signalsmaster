@@ -26,53 +26,59 @@ export function ExamOptionGrid({
   onSelect,
 }: ExamOptionGridProps) {
   return (
-    <div
-      className="grid grid-cols-1 gap-3 md:grid-cols-2"
-      role="radiogroup"
-      aria-label="Exam answer options"
-    >
-      {options.map((option, index) => {
-        const selected = option.id === selectedAnswer
-        const letter = getOptionLabel(index)
+    <div className="space-y-3">
+      {options.length !== 4 && (
+        <p className="text-xs text-destructive" role="alert" aria-live="assertive">
+          This question has an invalid number of options.
+        </p>
+      )}
+      <div
+        className="grid grid-cols-1 gap-3 md:grid-cols-2"
+        role="radiogroup"
+        aria-label="Exam answer options"
+      >
+        {options.map((option, index) => {
+          const selected = option.id === selectedAnswer
+          const letter = getOptionLabel(index)
 
-        return (
-          <Button
-            key={option.id}
-            type="button"
-            variant="outline"
-            disabled={disabled}
-            role="radio"
-            aria-checked={selected}
-            aria-label={`Option ${letter}`}
-            onClick={() => onSelect(option.id)}
-            className={cn(
-              "h-auto min-h-20 justify-start p-4 text-left",
-              selected && "border-primary bg-primary/5"
-            )}
-          >
-            <div className="flex w-full items-center gap-3">
-              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border text-sm font-semibold">
-                {letter}
-              </span>
-
-              {mode === "match" && option.imagePath ? (
-                <div className="relative h-20 w-full">
-                  <Image
-                    src={option.imagePath}
-                    alt={`Flag option ${letter}`}
-                    fill
-                    className="object-contain"
-                    unoptimized
-                  />
-                </div>
-              ) : (
-                <span className="text-sm font-medium">{option.label}</span>
+          return (
+            <Button
+              key={option.id}
+              type="button"
+              variant="outline"
+              disabled={disabled}
+              role="radio"
+              aria-checked={selected}
+              aria-label={`Option ${letter}`}
+              onClick={() => onSelect(option.id)}
+              className={cn(
+                "h-auto min-h-20 justify-start p-4 text-left",
+                selected && "border-primary bg-primary/5 ring-2 ring-primary/30"
               )}
-            </div>
-          </Button>
-        )
-      })}
+            >
+              <div className="flex w-full items-center gap-3">
+                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border text-sm font-semibold">
+                  {letter}
+                </span>
+
+                {mode === "match" && option.imagePath ? (
+                  <div className="relative h-20 w-full">
+                    <Image
+                      src={option.imagePath}
+                      alt={`Flag option ${letter}`}
+                      fill
+                      className="object-contain"
+                      unoptimized
+                    />
+                  </div>
+                ) : (
+                  <span className="text-sm font-medium">{option.label}</span>
+                )}
+              </div>
+            </Button>
+          )
+        })}
+      </div>
     </div>
   )
 }
-
