@@ -8,6 +8,12 @@ interface ExamAttemptHistoryCardProps {
   attempts: ExamAttemptHistoryItem[] | null | undefined
 }
 
+function formatAttemptScore(scorePercent: number | null): string {
+  return typeof scorePercent === "number" && Number.isFinite(scorePercent)
+    ? `${scorePercent.toFixed(2)}%`
+    : "N/A"
+}
+
 function getStatusBadgeVariant(status: ExamAttemptHistoryItem["status"]) {
   if (status === "completed") {
     return "default"
@@ -67,7 +73,7 @@ export function ExamAttemptHistoryCard({ attempts }: ExamAttemptHistoryCardProps
             </p>
             {attempt.scorePercent !== null && (
               <p className="mt-1 text-sm text-muted-foreground">
-                Score: {attempt.scorePercent.toFixed(2)}% {attempt.passed ? "(Passed)" : "(Not Passed)"}
+                Score: {formatAttemptScore(attempt.scorePercent)} {attempt.passed ? "(Passed)" : "(Not Passed)"}
               </p>
             )}
           </div>

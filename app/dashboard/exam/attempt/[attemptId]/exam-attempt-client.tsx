@@ -31,6 +31,16 @@ interface ExamAttemptClientProps {
   attemptId: Id<"examAttempts">
 }
 
+function formatScorePercent(value: number | null | undefined): string {
+  return typeof value === "number" && Number.isFinite(value)
+    ? `${value.toFixed(2)}%`
+    : "N/A"
+}
+
+function isValidNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value)
+}
+
 export function ExamAttemptClient({ attemptId }: ExamAttemptClientProps) {
   const router = useRouter()
   const attempt = useQuery(api.exams.getAttemptById, { examAttemptId: attemptId }) as
@@ -148,6 +158,10 @@ export function ExamAttemptClient({ attemptId }: ExamAttemptClientProps) {
     }) as Promise<ExamQuestionSubmissionResult>
   }
 
+  const result = attempt.result
+  const hasModeStats = Boolean(result?.modeStats)
+  const hasCategoryStats = Boolean(result?.categoryStats && result.categoryStats.length > 0)
+
   return (
     <div className="container mx-auto max-w-4xl space-y-6 py-6">
       {runtimeProgress.status === "completed" ? (
@@ -210,15 +224,41 @@ export function ExamAttemptClient({ attemptId }: ExamAttemptClientProps) {
                 : "recently"}
               .
             </p>
-            {attempt.result && (
+            {result && (
               <div className="rounded-md border bg-muted/40 p-4 text-sm">
-                <p>Score: <span className="font-semibold">{attempt.result.scorePercent.toFixed(2)}%</span></p>
+                <p>Score: <span className="font-semibold">{formatScorePercent(result.scorePercent)}</span></p>
                 <p>
                   Correct answers: <span className="font-semibold">
-                    {attempt.result.correctCount}/{attempt.result.totalQuestions}
+                    {isValidNumber(result.correctCount) ? result.correctCount : "N/A"}/
+                    {isValidNumber(result.totalQuestions) ? result.totalQuestions : "N/A"}
                   </span>
                 </p>
-                <p>Status: <span className="font-semibold">{attempt.result.passed ? "Passed" : "Not Passed"}</span></p>
+                <p>Status: <span className="font-semibold">{result.passed ? "Passed" : "Not Passed"}</span></p>
+
+                {hasModeStats && result.modeStats && (
+                  <div className="mt-3 border-t pt-3">
+                    <p className="mb-2 font-medium">Mode Breakdown</p>
+                    <p>
+                      Learn: {result.modeStats.learn.correct}/{result.modeStats.learn.total} correct
+                    </p>
+                    <p>
+                      Match: {result.modeStats.match.correct}/{result.modeStats.match.total} correct
+                    </p>
+                  </div>
+                )}
+
+                {hasCategoryStats && result.categoryStats && (
+                  <div className="mt-3 border-t pt-3">
+                    <p className="mb-2 font-medium">Category Breakdown</p>
+                    <div className="space-y-1">
+                      {result.categoryStats.map((item) => (
+                        <p key={item.category}>
+                          {item.category}: {item.correct}/{item.total} correct
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             <div className="flex flex-col gap-2 sm:flex-row">
