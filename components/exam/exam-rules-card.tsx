@@ -1,17 +1,28 @@
 import { Clock3, FileLock2, ListChecks, ShieldAlert } from "lucide-react"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ExamPolicySnapshot } from "@/lib/exam-types"
+import { ExamModeStrategy, ExamPolicySnapshot, ExamQuestionMode } from "@/lib/exam-types"
 
 interface ExamRulesCardProps {
   policy: ExamPolicySnapshot
+  modeStrategy: ExamModeStrategy
+  singleMode?: ExamQuestionMode
   expectedDurationMinutes: number
 }
 
-export function ExamRulesCard({ policy, expectedDurationMinutes }: ExamRulesCardProps) {
+export function ExamRulesCard({
+  policy,
+  modeStrategy,
+  singleMode,
+  expectedDurationMinutes,
+}: ExamRulesCardProps) {
   const timeLimitText = policy.isUntimed
     ? "Untimed assessment (no fixed time limit)."
     : `Time limit: ${policy.timeLimitMinutes ?? 0} minutes.`
+
+  const modeText = modeStrategy === "alternating"
+    ? "Question modes alternate between Learn the Flag and Match Meaning to Flag."
+    : `All questions use single mode: ${singleMode === "match" ? "Match Meaning to Flag" : "Learn the Flag"}.`
 
   return (
     <Card>
@@ -35,6 +46,7 @@ export function ExamRulesCard({ policy, expectedDurationMinutes }: ExamRulesCard
             <ShieldAlert className="mt-0.5 h-4 w-4 text-primary" />
             <span>Pass threshold: {policy.passThresholdPercent}% required.</span>
           </li>
+          <li>{modeText}</li>
           <li>Single official attempt policy applies and results are immutable.</li>
           <li>No pause or resume. The exam must be completed in one session.</li>
           <li>No returning to previous questions after proceeding.</li>

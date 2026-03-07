@@ -53,6 +53,17 @@ async function resolveExamGenerationSettings(ctx: AuthenticatedCtx): Promise<Exa
   };
 }
 
+async function assertAdminUser(ctx: MutationCtx): Promise<Doc<"users">> {
+  const user = await getAuthenticatedUser(ctx);
+  if (!user) {
+    throw new Error("Authentication is required.");
+  }
+  if (user.role !== "admin") {
+    throw new Error("Only administrators can change official exam settings.");
+  }
+  return user;
+}
+
 async function insertExamAuditLog(
   ctx: MutationCtx,
   input: {
@@ -205,9 +216,11 @@ export const getExamStartContext = query({
 
     const startData = await getExamStartData(ctx, user);
     const examPolicy = buildExamPolicySnapshot(startData.totalQuestions);
+    const generationSettings = await resolveExamGenerationSettings(ctx);
 
     return {
       examPolicy,
+      questionModePolicy: generationSettings,
       expectedDurationMinutes: startData.expectedDurationMinutes,
       minimumRulesViewDurationMs: OFFICIAL_EXAM_MIN_RULES_VIEW_DURATION_MS,
       prerequisite: {
@@ -231,6 +244,72 @@ export const getExamStartContext = query({
         latestAttemptStatus: startData.latestAttempt?.status ?? null,
         latestStartedAt: startData.latestAttempt?.startedAt ?? null,
       },
+    };
+  },
+});
+
+export const getExamGenerationSettings = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getAuthenticatedUser(ctx);
+    if (!user) {
+      return null;
+    }
+
+    if (user.role !== "admin") {
+      return null;
+    }
+
+    const generationSettings = await resolveExamGenerationSettings(ctx);
+    return generationSettings;
+  },
+});
+
+export const setExamGenerationSettings = mutation({
+  args: {
+    modeStrategy: v.union(v.literal("alternating"), v.literal("single")),
+    singleMode: v.optional(v.union(v.literal("learn"), v.literal("match"))),
+  },
+  handler: async (ctx, args) => {
+    const adminUser = await assertAdminUser(ctx);
+
+    if (args.modeStrategy === "single" && !args.singleMode) {
+      throw new Error("singleMode is required when modeStrategy is set to single.");
+    }
+
+    if (args.modeStrategy === "alternating" && args.singleMode !== undefined) {
+      throw new Error("singleMode must not be provided when using alternating mode.");
+    }
+
+    const now = Date.now();
+
+    const existing = await ctx.db
+      .query("examSettings")
+      .withIndex("by_updatedAt")
+      .order("desc")
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        modeStrategy: args.modeStrategy,
+        singleMode: args.modeStrategy === "single" ? args.singleMode : undefined,
+        updatedBy: adminUser._id,
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.insert("examSettings", {
+        modeStrategy: args.modeStrategy,
+        singleMode: args.modeStrategy === "single" ? args.singleMode : undefined,
+        updatedBy: adminUser._id,
+        updatedAt: now,
+        createdAt: now,
+      });
+    }
+
+    return {
+      modeStrategy: args.modeStrategy,
+      singleMode: args.modeStrategy === "single" ? args.singleMode : undefined,
+      updatedAt: now,
     };
   },
 });

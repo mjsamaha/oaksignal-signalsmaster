@@ -171,6 +171,8 @@ export function ExamStartClient() {
         <div className="space-y-6 lg:col-span-2">
           <ExamRulesCard
             policy={startContext.examPolicy}
+            modeStrategy={startContext.questionModePolicy.modeStrategy}
+            singleMode={startContext.questionModePolicy.singleMode}
             expectedDurationMinutes={startContext.expectedDurationMinutes}
           />
           <ExamPrerequisitesCard

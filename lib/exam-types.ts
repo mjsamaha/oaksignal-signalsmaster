@@ -11,6 +11,10 @@ export interface ExamPolicySnapshot {
 
 export interface ExamStartContext {
   examPolicy: ExamPolicySnapshot
+  questionModePolicy: {
+    modeStrategy: ExamModeStrategy
+    singleMode?: ExamQuestionMode
+  }
   expectedDurationMinutes: number
   minimumRulesViewDurationMs: number
   prerequisite: {
