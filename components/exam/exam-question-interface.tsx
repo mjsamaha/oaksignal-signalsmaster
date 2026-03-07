@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Image from "next/image"
-import { Loader2 } from "lucide-react"
+import { AlertTriangle, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -28,6 +28,58 @@ interface ExamQuestionInterfaceProps {
     questionIndex: number
     selectedAnswer: string
   }) => Promise<ExamQuestionSubmissionResult>
+}
+
+function extractErrorText(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+  return "Failed to submit answer."
+}
+
+function normalizeExamSubmitError(rawMessage: string): string {
+  const normalized = rawMessage.toLowerCase()
+
+  if (
+    normalized.includes("suspicious response timing") ||
+    normalized.includes("suspiciously fast")
+  ) {
+    return "That answer was submitted too quickly to validate. Please read the prompt carefully and submit again."
+  }
+
+  if (normalized.includes("submitting too quickly")) {
+    return "Please wait a moment before submitting your next answer."
+  }
+
+  if (normalized.includes("too many submissions in a short period")) {
+    return "You're submitting too frequently. Pause briefly, then try again."
+  }
+
+  if (normalized.includes("session validation failed")) {
+    return "Your secure exam session needs to be refreshed before continuing."
+  }
+
+  if (normalized.includes("question index mismatch")) {
+    return "Question order changed unexpectedly. Please try submitting again."
+  }
+
+  if (normalized.includes("already been answered")) {
+    return "This question has already been submitted. Moving to the next question."
+  }
+
+  if (normalized.includes("ended due to inactivity")) {
+    return "This attempt ended due to inactivity. Return to Exam Start to begin a new attempt."
+  }
+
+  if (normalized.includes("invalid answer option")) {
+    return "That option is no longer valid. Please reselect your answer and submit again."
+  }
+
+  if (normalized.includes("exam question integrity check failed")) {
+    return "Question data could not be validated. Refresh the page and try again."
+  }
+
+  return "We could not submit your answer right now. Please try again."
 }
 
 export function ExamQuestionInterface({
@@ -59,8 +111,8 @@ export function ExamQuestionInterface({
 
       setSelectedAnswer(null)
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to submit answer."
-      setSubmitError(message)
+      const rawMessage = extractErrorText(error)
+      setSubmitError(normalizeExamSubmitError(rawMessage))
     } finally {
       setIsSubmitting(false)
     }
@@ -92,9 +144,15 @@ export function ExamQuestionInterface({
           <div
             role="alert"
             aria-live="assertive"
-            className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+            className="rounded-lg border border-destructive/35 bg-destructive/10 px-4 py-3 text-sm"
           >
-            {submitError}
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+              <div className="space-y-1">
+                <p className="font-medium text-destructive">Submission blocked</p>
+                <p className="text-destructive/90">{submitError}</p>
+              </div>
+            </div>
           </div>
         )}
 
