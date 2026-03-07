@@ -132,6 +132,9 @@ Pre-push helper flags:
    * `OFFICIAL_EXAM_SUBMISSION_MIN_INTERVAL_MS` (default `750`, minimum `100`)
    * `OFFICIAL_EXAM_SUBMISSION_WINDOW_MS` (default `60000`, minimum `1000`)
    * `OFFICIAL_EXAM_SUBMISSION_MAX_PER_WINDOW` (default `30`, minimum `1`)
+* Optional timing anomaly detection thresholds:
+   * `OFFICIAL_EXAM_MIN_RESPONSE_TIME_MS` (default `1500`, minimum `100`; rejects suspiciously fast submissions)
+   * `OFFICIAL_EXAM_SLOW_RESPONSE_WARNING_MS` (default `120000`, minimum `5000`; logs slow response anomalies)
 * Rollback path for idle timeout: remove/unset `OFFICIAL_EXAM_IDLE_TIMEOUT_MS` and redeploy Convex functions.
 
 ---

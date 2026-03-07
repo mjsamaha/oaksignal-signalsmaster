@@ -27,6 +27,8 @@ const MIN_OFFICIAL_EXAM_IDLE_TIMEOUT_MS = 60_000;
 const DEFAULT_OFFICIAL_EXAM_SUBMISSION_MIN_INTERVAL_MS = 750;
 const DEFAULT_OFFICIAL_EXAM_SUBMISSION_WINDOW_MS = 60_000;
 const DEFAULT_OFFICIAL_EXAM_SUBMISSION_MAX_PER_WINDOW = 30;
+const DEFAULT_OFFICIAL_EXAM_MIN_RESPONSE_TIME_MS = 1_500;
+const DEFAULT_OFFICIAL_EXAM_SLOW_RESPONSE_WARNING_MS = 120_000;
 
 interface ExamStartData {
   totalQuestions: number;
@@ -47,6 +49,11 @@ interface ExamSubmissionRateLimitConfig {
   minIntervalMs: number;
   windowMs: number;
   maxPerWindow: number;
+}
+
+interface ExamTimingAnomalyConfig {
+  minResponseTimeMs: number;
+  slowResponseWarningMs: number;
 }
 
 function getPositiveIntegerEnv(
@@ -87,6 +94,21 @@ function getOfficialExamSubmissionRateLimitConfig(): ExamSubmissionRateLimitConf
       "OFFICIAL_EXAM_SUBMISSION_MAX_PER_WINDOW",
       DEFAULT_OFFICIAL_EXAM_SUBMISSION_MAX_PER_WINDOW,
       1
+    ),
+  };
+}
+
+function getOfficialExamTimingAnomalyConfig(): ExamTimingAnomalyConfig {
+  return {
+    minResponseTimeMs: getPositiveIntegerEnv(
+      "OFFICIAL_EXAM_MIN_RESPONSE_TIME_MS",
+      DEFAULT_OFFICIAL_EXAM_MIN_RESPONSE_TIME_MS,
+      100
+    ),
+    slowResponseWarningMs: getPositiveIntegerEnv(
+      "OFFICIAL_EXAM_SLOW_RESPONSE_WARNING_MS",
+      DEFAULT_OFFICIAL_EXAM_SLOW_RESPONSE_WARNING_MS,
+      5_000
     ),
   };
 }
@@ -870,6 +892,7 @@ export const submitExamAnswer = mutation({
     const questions = await getAttemptQuestions(ctx, args.examAttemptId);
     const requestReceivedAt = Date.now();
     const submissionRateLimit = getOfficialExamSubmissionRateLimitConfig();
+    const timingAnomaly = getOfficialExamTimingAnomalyConfig();
 
     const answeredTimestamps = questions
       .map((question) => question.answeredAt ?? null)
@@ -877,6 +900,40 @@ export const submitExamAnswer = mutation({
       .sort((a, b) => b - a);
 
     const mostRecentAnsweredAt = answeredTimestamps[0] ?? null;
+    const responseWindowStartAt = mostRecentAnsweredAt ?? attempt.startedAt;
+    const responseTimeMs = requestReceivedAt - responseWindowStartAt;
+
+    if (responseTimeMs < timingAnomaly.minResponseTimeMs) {
+      return rejectExamSubmission(ctx, {
+        examAttemptId: args.examAttemptId,
+        userId: user._id,
+        questionIndex: args.questionIndex,
+        reason: "suspicious_timing_too_fast",
+        auditMessage: "Rejected submission due to suspiciously fast response timing.",
+        throwMessage: "Submission rejected due to suspicious response timing.",
+        metadata: {
+          responseTimeMs,
+          minResponseTimeMs: timingAnomaly.minResponseTimeMs,
+          responseWindowStartAt,
+        },
+      });
+    }
+
+    if (responseTimeMs >= timingAnomaly.slowResponseWarningMs) {
+      await insertExamAuditLog(ctx, {
+        examAttemptId: args.examAttemptId,
+        userId: user._id,
+        eventType: "idle_warning_shown",
+        message: "Detected unusually slow response timing for exam submission.",
+        metadata: {
+          questionIndex: args.questionIndex,
+          responseTimeMs,
+          slowResponseWarningMs: timingAnomaly.slowResponseWarningMs,
+          responseWindowStartAt,
+        },
+      });
+    }
+
     if (mostRecentAnsweredAt !== null) {
       const intervalSinceLastSubmissionMs = requestReceivedAt - mostRecentAnsweredAt;
       if (intervalSinceLastSubmissionMs < submissionRateLimit.minIntervalMs) {
@@ -917,7 +974,7 @@ export const submitExamAnswer = mutation({
     }
 
     if (idleTimeoutMs !== null) {
-      const lastActivityAt = getLastAnsweredAt(questions) ?? attempt.startedAt;
+      const lastActivityAt = mostRecentAnsweredAt ?? attempt.startedAt;
       const idleDurationMs = requestReceivedAt - lastActivityAt;
       if (idleDurationMs >= idleTimeoutMs) {
         await ctx.db.patch(attempt._id, {
