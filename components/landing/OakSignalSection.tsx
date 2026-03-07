@@ -92,7 +92,7 @@ export function OakSignalSection() {
               </CardContent>
             </Card>
 
-            {/* Quartermaster Card */}
+            {/* Cadet Inventory Management System Card */}
             <Card className="border-border/60 shadow-xs opacity-90 hover:opacity-100 transition-opacity">
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-start">
@@ -101,7 +101,7 @@ export function OakSignalSection() {
                       <Package className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <div>
-                      <CardTitle className="text-lg">Quartermaster</CardTitle>
+                      <CardTitle className="text-lg">Cadet Inventory Management System</CardTitle>
                       <CardDescription className="text-xs font-medium uppercase tracking-wider mt-1">
                         Supply & Logistics
                       </CardDescription>
@@ -111,7 +111,7 @@ export function OakSignalSection() {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  A modern inventory management system designed specifically for the unique needs of cadet supply stores. 
+                  A modern inventory management system designed specifically for the unique needs of cadet units. 
                   Track uniforms, equipment issuance, and stock levels with precision and ease.
                 </p>
               </CardContent>
