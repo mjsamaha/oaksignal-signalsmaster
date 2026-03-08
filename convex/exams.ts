@@ -192,7 +192,10 @@ async function rejectExamSubmission(
     reason: string;
     auditMessage: string;
     throwMessage?: string;
-    eventType?: Extract<ExamAuditEventType, "submission_rejected" | "session_token_rejected">;
+    eventType?: Extract<
+      ExamAuditEventType,
+      "submission_rejected" | "session_token_rejected" | "immutable_write_blocked"
+    >;
     metadata?: Record<string, unknown>;
   }
 ): Promise<never> {
@@ -970,6 +973,22 @@ export const submitExamAnswer = mutation({
       });
     }
 
+    if (attempt.immutableAt !== undefined) {
+      return rejectExamSubmission(ctx, {
+        examAttemptId: args.examAttemptId,
+        userId: user._id,
+        questionIndex: args.questionIndex,
+        reason: "attempt_immutable",
+        eventType: "immutable_write_blocked",
+        auditMessage: "Blocked write attempt against immutable exam attempt.",
+        throwMessage: "This exam attempt has been finalized and is immutable.",
+        metadata: {
+          immutableAt: attempt.immutableAt,
+          attemptStatus: attempt.status,
+        },
+      });
+    }
+
     if (attempt.status !== "started") {
       return rejectExamSubmission(ctx, {
         examAttemptId: args.examAttemptId,
@@ -1378,6 +1397,21 @@ export const submitExamAnswer = mutation({
       const signature = recordChecksum;
 
       let examResultId = attempt.examResultId;
+      if (examResultId) {
+        return rejectExamSubmission(ctx, {
+          examAttemptId: args.examAttemptId,
+          userId: user._id,
+          questionIndex: args.questionIndex,
+          reason: "result_record_already_exists",
+          eventType: "immutable_write_blocked",
+          auditMessage: "Blocked duplicate immutable result creation attempt.",
+          throwMessage: "This exam attempt has already been finalized.",
+          metadata: {
+            examResultId,
+          },
+        });
+      }
+
       if (!examResultId) {
         examResultId = await ctx.db.insert("examResults", {
           ...canonicalResultPayload,
@@ -1539,8 +1573,20 @@ export const logExamClientEvent = mutation({
       throw new Error("Exam attempt not found or access denied.");
     }
 
-    if (attempt.status !== "started") {
-      throw new Error("Client security events can only be logged for active exam attempts.");
+    if (attempt.immutableAt !== undefined || attempt.status !== "started") {
+      await insertExamAuditLog(ctx, {
+        examAttemptId: attempt._id,
+        userId: user._id,
+        eventType: "immutable_write_blocked",
+        message: "Blocked client security mutation against immutable or finalized exam attempt.",
+        metadata: {
+          requestedEventType: args.eventType,
+          attemptStatus: attempt.status,
+          immutableAt: attempt.immutableAt,
+        },
+      });
+
+      throw new Error("This exam attempt has been finalized and cannot be modified.");
     }
 
     if (!CLIENT_SECURITY_EVENT_TYPES.includes(args.eventType)) {
