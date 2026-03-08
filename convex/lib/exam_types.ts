@@ -68,6 +68,7 @@ export type ExamAuditEventType =
   | "submission_validated"
   | "submission_rejected"
   | "immutable_write_blocked"
+  | "result_backfilled"
   | "session_token_issued"
   | "session_token_validated"
   | "session_token_rejected"

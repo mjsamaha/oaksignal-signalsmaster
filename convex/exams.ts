@@ -302,6 +302,152 @@ function mapOfficialResultRecord(result: Doc<"examResults">) {
   };
 }
 
+function mapImmutableResultToAttemptResult(result: Doc<"examResults">): {
+  totalQuestions: number;
+  correctCount: number;
+  scorePercent: number;
+  passed: boolean;
+  modeStats?: {
+    learn: { total: number; correct: number; incorrect: number };
+    match: { total: number; correct: number; incorrect: number };
+  };
+  categoryStats?: Array<{ category: string; total: number; correct: number; incorrect: number }>;
+} {
+  return {
+    totalQuestions: result.totalQuestions,
+    correctCount: result.totalCorrect,
+    scorePercent: result.scorePercent,
+    passed: result.passed,
+    modeStats: result.modeStats,
+    categoryStats: result.categoryStats,
+  };
+}
+
+async function getImmutableResultForAttempt(
+  ctx: AuthenticatedCtx,
+  attempt: Doc<"examAttempts">
+): Promise<Doc<"examResults"> | null> {
+  if (attempt.examResultId) {
+    const linked = await ctx.db.get(attempt.examResultId);
+    if (linked) {
+      return linked;
+    }
+  }
+
+  return ctx.db
+    .query("examResults")
+    .withIndex("by_attempt", (q) => q.eq("examAttemptId", attempt._id))
+    .first();
+}
+
+function buildCanonicalOfficialResultPayload(result: Doc<"examResults">) {
+  return {
+    examAttemptId: result.examAttemptId,
+    userId: result.userId,
+    immutable: result.immutable,
+    immutableAt: result.immutableAt,
+    certificateNumber: result.certificateNumber,
+    resultVersion: result.resultVersion,
+    userSnapshot: result.userSnapshot,
+    attemptNumber: result.attemptNumber,
+    startedAt: result.startedAt,
+    completedAt: result.completedAt,
+    totalQuestions: result.totalQuestions,
+    totalCorrect: result.totalCorrect,
+    scorePercent: result.scorePercent,
+    passThresholdPercent: result.passThresholdPercent,
+    passed: result.passed,
+    examModesUsed: result.examModesUsed,
+    modeStats: result.modeStats,
+    categoryStats: result.categoryStats,
+    flagDatabaseSnapshot: result.flagDatabaseSnapshot,
+    questionBreakdown: result.questionBreakdown,
+  };
+}
+
+async function buildQuestionBreakdownFromAttempt(
+  ctx: MutationCtx,
+  input: {
+    attempt: Doc<"examAttempts">;
+    sortedQuestions: Doc<"examQuestions">[];
+  }
+): Promise<Array<{
+  questionIndex: number;
+  flagId: Doc<"flags">["_id"];
+  flagKey: string;
+  flagName: string;
+  flagImagePath: string;
+  category: string;
+  mode: "learn" | "match";
+  options: Array<{
+    id: string;
+    label: string;
+    value: string;
+    imagePath?: string;
+  }>;
+  selectedAnswer: string | null;
+  correctAnswer: string;
+  isCorrect: boolean;
+  answeredAt?: number;
+  responseTimeMs?: number;
+  questionChecksum: string;
+}>> {
+  const flagSnapshotById = new Map(
+    (input.attempt.flagSnapshot ?? []).map((item) => [item.flagId, item])
+  );
+
+  const questionBreakdown: Array<{
+    questionIndex: number;
+    flagId: Doc<"flags">["_id"];
+    flagKey: string;
+    flagName: string;
+    flagImagePath: string;
+    category: string;
+    mode: "learn" | "match";
+    options: Array<{
+      id: string;
+      label: string;
+      value: string;
+      imagePath?: string;
+    }>;
+    selectedAnswer: string | null;
+    correctAnswer: string;
+    isCorrect: boolean;
+    answeredAt?: number;
+    responseTimeMs?: number;
+    questionChecksum: string;
+  }> = [];
+
+  for (let index = 0; index < input.sortedQuestions.length; index += 1) {
+    const question = input.sortedQuestions[index];
+    const snapshotFlag = flagSnapshotById.get(question.flagId);
+    const fallbackFlag = snapshotFlag ? null : await ctx.db.get(question.flagId);
+
+    questionBreakdown.push({
+      questionIndex: question.questionIndex,
+      flagId: question.flagId,
+      flagKey: question.flagKey,
+      flagName: snapshotFlag?.name ?? fallbackFlag?.name ?? question.flagKey,
+      flagImagePath: snapshotFlag?.imagePath ?? fallbackFlag?.imagePath ?? "",
+      category: snapshotFlag?.category ?? fallbackFlag?.category ?? "unknown",
+      mode: question.mode,
+      options: question.options,
+      selectedAnswer: question.userAnswer,
+      correctAnswer: question.correctAnswer,
+      isCorrect: question.isCorrect === true,
+      answeredAt: question.answeredAt,
+      responseTimeMs: getQuestionResponseTimeMs({
+        startedAt: input.attempt.startedAt,
+        sortedQuestions: input.sortedQuestions,
+        index,
+      }),
+      questionChecksum: question.checksum,
+    });
+  }
+
+  return questionBreakdown;
+}
+
 async function buildPercentileRanking(
   ctx: MutationCtx,
   result: Doc<"examResults">
@@ -901,15 +1047,26 @@ export const getAttemptHistory = query({
       .order("desc")
       .take(limit);
 
-    return attempts.map((attempt) => ({
-      examAttemptId: attempt._id,
-      attemptNumber: attempt.attemptNumber,
-      status: attempt.status,
-      startedAt: attempt.startedAt,
-      completedAt: attempt.completedAt ?? null,
-      scorePercent: attempt.result?.scorePercent ?? null,
-      passed: attempt.result?.passed ?? null,
-    }));
+    const mapped = await Promise.all(
+      attempts.map(async (attempt) => {
+        const immutableResult = await getImmutableResultForAttempt(ctx, attempt);
+        const effectiveResult = immutableResult
+          ? mapImmutableResultToAttemptResult(immutableResult)
+          : (attempt.result ?? null);
+
+        return {
+          examAttemptId: attempt._id,
+          attemptNumber: attempt.attemptNumber,
+          status: attempt.status,
+          startedAt: attempt.startedAt,
+          completedAt: attempt.completedAt ?? null,
+          scorePercent: effectiveResult?.scorePercent ?? null,
+          passed: effectiveResult?.passed ?? null,
+        };
+      })
+    );
+
+    return mapped;
   },
 });
 
@@ -1614,6 +1771,11 @@ export const getAttemptById = query({
       }
     }
 
+    const immutableResult = await getImmutableResultForAttempt(ctx, attempt);
+    const effectiveResult = immutableResult
+      ? mapImmutableResultToAttemptResult(immutableResult)
+      : (attempt.result ?? null);
+
     return {
       examAttemptId: attempt._id,
       attemptNumber: attempt.attemptNumber,
@@ -1630,7 +1792,7 @@ export const getAttemptById = query({
       prerequisiteSnapshot: attempt.prerequisiteSnapshot,
       systemSnapshot: attempt.systemSnapshot,
       generationSnapshot: attempt.generationSnapshot ?? null,
-      result: attempt.result ?? null,
+      result: effectiveResult,
     };
   },
 });
@@ -1813,6 +1975,267 @@ export const getOfficialResultForAdminReview = mutation({
       ...mapOfficialResultRecord(result),
       percentileRanking,
     };
+  },
+});
+
+export const getOfficialResultByCertificate = mutation({
+  args: {
+    certificateNumber: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getAuthenticatedUser(ctx);
+    if (!user) {
+      return null;
+    }
+
+    const result = await ctx.db
+      .query("examResults")
+      .withIndex("by_certificate", (q) => q.eq("certificateNumber", args.certificateNumber))
+      .first();
+
+    if (!result) {
+      return null;
+    }
+
+    if (!canAccessResultRecord(user, result)) {
+      await insertExamResultAccessLog(ctx, {
+        result,
+        actorUser: user,
+        accessType: "result_access_denied",
+        metadata: {
+          endpoint: "getOfficialResultByCertificate",
+          reason: "access_denied",
+          certificateNumber: args.certificateNumber,
+        },
+      });
+      return null;
+    }
+
+    await insertExamResultAccessLog(ctx, {
+      result,
+      actorUser: user,
+      accessType: "result_read",
+      metadata: {
+        endpoint: "getOfficialResultByCertificate",
+        certificateNumber: args.certificateNumber,
+      },
+    });
+
+    const percentileRanking = await buildPercentileRanking(ctx, result);
+
+    return {
+      ...mapOfficialResultRecord(result),
+      percentileRanking,
+    };
+  },
+});
+
+export const verifyOfficialResultIntegrity = mutation({
+  args: {
+    examResultId: v.id("examResults"),
+  },
+  handler: async (ctx, args) => {
+    const user = await getAuthenticatedUser(ctx);
+    if (!user) {
+      return null;
+    }
+
+    const result = await ctx.db.get(args.examResultId);
+    if (!result) {
+      return null;
+    }
+
+    if (!canAccessResultRecord(user, result)) {
+      await insertExamResultAccessLog(ctx, {
+        result,
+        actorUser: user,
+        accessType: "result_access_denied",
+        metadata: {
+          endpoint: "verifyOfficialResultIntegrity",
+          reason: "access_denied",
+          examResultId: args.examResultId,
+        },
+      });
+      return null;
+    }
+
+    const canonicalPayload = buildCanonicalOfficialResultPayload(result);
+    const canonicalJson = stableStringify(canonicalPayload);
+    const recomputedChecksum = await sha256Hex(canonicalJson);
+    const checksumMatches = recomputedChecksum === result.recordChecksum;
+    const signatureMatches =
+      result.signatureAlgorithm === "sha256" && result.signature === recomputedChecksum;
+    const isValid = checksumMatches && signatureMatches;
+
+    await insertExamResultAccessLog(ctx, {
+      result,
+      actorUser: user,
+      accessType: "result_verify",
+      metadata: {
+        endpoint: "verifyOfficialResultIntegrity",
+        examResultId: args.examResultId,
+        checksumMatches,
+        signatureMatches,
+        isValid,
+      },
+    });
+
+    return {
+      examResultId: result._id,
+      examAttemptId: result.examAttemptId,
+      certificateNumber: result.certificateNumber,
+      checksumMatches,
+      signatureMatches,
+      isValid,
+      storedChecksum: result.recordChecksum,
+      recomputedChecksum,
+      signatureAlgorithm: result.signatureAlgorithm,
+      verifiedAt: Date.now(),
+    };
+  },
+});
+
+export const backfillImmutableResults = mutation({
+  args: {
+    limit: v.optional(v.number()),
+    dryRun: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const adminUser = await assertAdminUser(ctx);
+
+    const limit = args.limit ?? 50;
+    if (!Number.isInteger(limit) || limit < 1 || limit > 500) {
+      throw new Error("Limit must be an integer between 1 and 500");
+    }
+
+    const dryRun = args.dryRun ?? false;
+    const completedAttempts = await ctx.db
+      .query("examAttempts")
+      .withIndex("by_status_startedAt", (q) => q.eq("status", "completed"))
+      .order("desc")
+      .take(limit);
+
+    const summary = {
+      scanned: completedAttempts.length,
+      created: 0,
+      linkedExisting: 0,
+      skippedMissingData: 0,
+      dryRun,
+    };
+
+    for (const attempt of completedAttempts) {
+      if (attempt.examResultId) {
+        summary.linkedExisting += 1;
+        continue;
+      }
+
+      const user = await ctx.db.get(attempt.userId);
+      if (!user || !attempt.completedAt) {
+        summary.skippedMissingData += 1;
+        continue;
+      }
+
+      const sortedQuestions = (await getAttemptQuestions(ctx, attempt._id))
+        .slice()
+        .sort((a, b) => a.questionIndex - b.questionIndex);
+
+      if (sortedQuestions.length === 0) {
+        summary.skippedMissingData += 1;
+        continue;
+      }
+
+      const totalQuestions = sortedQuestions.length;
+      const totalCorrect = sortedQuestions.filter((item) => item.isCorrect === true).length;
+      const scorePercent = totalQuestions > 0
+        ? roundToTwoDecimals((totalCorrect / totalQuestions) * 100)
+        : 0;
+      const passed = scorePercent >= attempt.policySnapshot.passThresholdPercent;
+      const { modeStats, categoryStats } = buildCompletedExamStats(sortedQuestions, attempt);
+      const examModesUsed = [...new Set(sortedQuestions.map((question) => question.mode))];
+      const questionBreakdown = await buildQuestionBreakdownFromAttempt(ctx, {
+        attempt,
+        sortedQuestions,
+      });
+
+      const certificateNumber = buildCertificateNumber({
+        completedAt: attempt.completedAt,
+        attemptNumber: attempt.attemptNumber,
+        examAttemptId: String(attempt._id),
+      });
+
+      const roleAtExam: "cadet" | "admin" = user.role === "admin" ? "admin" : "cadet";
+      const generationSnapshot = attempt.generationSnapshot;
+      const canonicalPayload = {
+        examAttemptId: attempt._id,
+        userId: user._id,
+        immutable: true,
+        immutableAt: attempt.immutableAt ?? attempt.completedAt,
+        certificateNumber,
+        resultVersion: 1,
+        userSnapshot: {
+          userId: user._id,
+          fullName: user.name?.trim() || user.email,
+          roleAtExam,
+        },
+        attemptNumber: attempt.attemptNumber,
+        startedAt: attempt.startedAt,
+        completedAt: attempt.completedAt,
+        totalQuestions,
+        totalCorrect,
+        scorePercent,
+        passThresholdPercent: attempt.policySnapshot.passThresholdPercent,
+        passed,
+        examModesUsed,
+        modeStats,
+        categoryStats,
+        flagDatabaseSnapshot: {
+          generationVersion: generationSnapshot?.generationVersion ?? 1,
+          examChecksum: generationSnapshot?.examChecksum ?? "unknown",
+          questionCount: generationSnapshot?.questionCount ?? totalQuestions,
+          modeStrategy: generationSnapshot?.modeStrategy ?? "alternating",
+          singleMode: generationSnapshot?.singleMode,
+          generationStartedAt: generationSnapshot?.generationStartedAt ?? attempt.startedAt,
+          generationCompletedAt: generationSnapshot?.generationCompletedAt ?? attempt.startedAt,
+          generationTimeMs: generationSnapshot?.generationTimeMs ?? 0,
+          generationRetryCount: generationSnapshot?.generationRetryCount ?? 0,
+        },
+        questionBreakdown,
+      };
+
+      const canonicalJson = stableStringify(canonicalPayload);
+      const recordChecksum = await sha256Hex(canonicalJson);
+
+      if (!dryRun) {
+        const examResultId = await ctx.db.insert("examResults", {
+          ...canonicalPayload,
+          recordChecksum,
+          signatureAlgorithm: "sha256",
+          signature: recordChecksum,
+          createdAt: attempt.completedAt,
+        });
+
+        await ctx.db.patch(attempt._id, {
+          examResultId,
+          immutableAt: attempt.immutableAt ?? attempt.completedAt,
+          updatedAt: Date.now(),
+        });
+
+        await insertExamAuditLog(ctx, {
+          examAttemptId: attempt._id,
+          userId: adminUser._id,
+          eventType: "result_backfilled",
+          message: "Backfilled immutable official result record for completed attempt.",
+          metadata: {
+            source: "backfillImmutableResults",
+            examResultId,
+          },
+        });
+      }
+
+      summary.created += 1;
+    }
+
+    return summary;
   },
 });
 

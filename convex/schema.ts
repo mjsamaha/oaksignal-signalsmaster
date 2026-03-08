@@ -399,6 +399,7 @@ export default defineSchema({
       v.literal("submission_validated"),
       v.literal("submission_rejected"),
       v.literal("immutable_write_blocked"),
+      v.literal("result_backfilled"),
       v.literal("session_token_issued"),
       v.literal("session_token_validated"),
       v.literal("session_token_rejected"),
