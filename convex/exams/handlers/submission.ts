@@ -40,6 +40,7 @@ export const submitExamAnswer = mutation({
       throw new Error("Must be authenticated to submit official exam answers.");
     }
 
+    
     const attempt = await getOwnedAttempt(ctx, user._id, args.examAttemptId);
     if (!attempt) {
       return rejectExamSubmission(ctx, {
