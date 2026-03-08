@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
+import { mutation, query, MutationCtx } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
 import {
   buildExamPolicySnapshot,
@@ -15,10 +15,8 @@ import {
 import { generateExamQuestions, applyExamAttemptToQuestions } from "./lib/exam_generation";
 import { generateExamSeed } from "./lib/exam_randomization";
 import {
-  ExamAuditEventType,
   ExamModeStrategy,
   ExamQuestionMode,
-  ResultAccessType,
 } from "./lib/exam_types";
 import { buildQuestionChecksum } from "./lib/exam_checksum";
 import {
@@ -26,14 +24,30 @@ import {
   issueExamSessionToken,
   validateExamSessionToken,
 } from "./lib/exam_session_token";
-
-type AuthenticatedCtx = QueryCtx | MutationCtx;
-const MIN_OFFICIAL_EXAM_IDLE_TIMEOUT_MS = 60_000;
-const DEFAULT_OFFICIAL_EXAM_SUBMISSION_MIN_INTERVAL_MS = 750;
-const DEFAULT_OFFICIAL_EXAM_SUBMISSION_WINDOW_MS = 60_000;
-const DEFAULT_OFFICIAL_EXAM_SUBMISSION_MAX_PER_WINDOW = 30;
-const DEFAULT_OFFICIAL_EXAM_MIN_RESPONSE_TIME_MS = 1_500;
-const DEFAULT_OFFICIAL_EXAM_SLOW_RESPONSE_WARNING_MS = 120_000;
+import {
+  assertAdminUser,
+  AuthenticatedCtx,
+  canAccessResultRecord,
+  getAuthenticatedUser,
+  getOwnedAttempt,
+} from "./exams/services/auth";
+import {
+  getOfficialExamIdleTimeoutMs,
+  getOfficialExamSubmissionRateLimitConfig,
+  getOfficialExamTimingAnomalyConfig,
+} from "./exams/services/config";
+import {
+  insertExamAuditLog,
+  insertExamResultAccessLog,
+  rejectExamSubmission,
+} from "./exams/services/audit";
+import {
+  getCurrentQuestionIndex,
+  getLastAnsweredAt,
+  getQuestionResponseTimeMs,
+  roundToTwoDecimals,
+} from "./exams/services/time";
+import { sha256Hex, stableStringify } from "./exams/services/hash";
 
 interface ExamStartData {
   totalQuestions: number;
@@ -48,94 +62,6 @@ interface ExamStartData {
 interface ExamGenerationSettings {
   modeStrategy: ExamModeStrategy;
   singleMode?: ExamQuestionMode;
-}
-
-interface ExamSubmissionRateLimitConfig {
-  minIntervalMs: number;
-  windowMs: number;
-  maxPerWindow: number;
-}
-
-interface ExamTimingAnomalyConfig {
-  minResponseTimeMs: number;
-  slowResponseWarningMs: number;
-}
-
-function getPositiveIntegerEnv(
-  envKey: string,
-  fallback: number,
-  minimum: number
-): number {
-  const raw = process.env[envKey]?.trim();
-  if (!raw) {
-    return fallback;
-  }
-
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
-    throw new Error(`${envKey} must be an integer.`);
-  }
-
-  if (parsed < minimum) {
-    throw new Error(`${envKey} must be at least ${minimum}.`);
-  }
-
-  return parsed;
-}
-
-function getOfficialExamSubmissionRateLimitConfig(): ExamSubmissionRateLimitConfig {
-  return {
-    minIntervalMs: getPositiveIntegerEnv(
-      "OFFICIAL_EXAM_SUBMISSION_MIN_INTERVAL_MS",
-      DEFAULT_OFFICIAL_EXAM_SUBMISSION_MIN_INTERVAL_MS,
-      100
-    ),
-    windowMs: getPositiveIntegerEnv(
-      "OFFICIAL_EXAM_SUBMISSION_WINDOW_MS",
-      DEFAULT_OFFICIAL_EXAM_SUBMISSION_WINDOW_MS,
-      1_000
-    ),
-    maxPerWindow: getPositiveIntegerEnv(
-      "OFFICIAL_EXAM_SUBMISSION_MAX_PER_WINDOW",
-      DEFAULT_OFFICIAL_EXAM_SUBMISSION_MAX_PER_WINDOW,
-      1
-    ),
-  };
-}
-
-function getOfficialExamTimingAnomalyConfig(): ExamTimingAnomalyConfig {
-  return {
-    minResponseTimeMs: getPositiveIntegerEnv(
-      "OFFICIAL_EXAM_MIN_RESPONSE_TIME_MS",
-      DEFAULT_OFFICIAL_EXAM_MIN_RESPONSE_TIME_MS,
-      100
-    ),
-    slowResponseWarningMs: getPositiveIntegerEnv(
-      "OFFICIAL_EXAM_SLOW_RESPONSE_WARNING_MS",
-      DEFAULT_OFFICIAL_EXAM_SLOW_RESPONSE_WARNING_MS,
-      5_000
-    ),
-  };
-}
-
-function getOfficialExamIdleTimeoutMs(): number | null {
-  const raw = process.env.OFFICIAL_EXAM_IDLE_TIMEOUT_MS?.trim();
-  if (!raw) {
-    return null;
-  }
-
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
-    throw new Error("OFFICIAL_EXAM_IDLE_TIMEOUT_MS must be an integer number of milliseconds.");
-  }
-
-  if (parsed < MIN_OFFICIAL_EXAM_IDLE_TIMEOUT_MS) {
-    throw new Error(
-      `OFFICIAL_EXAM_IDLE_TIMEOUT_MS must be at least ${MIN_OFFICIAL_EXAM_IDLE_TIMEOUT_MS}.`
-    );
-  }
-
-  return parsed;
 }
 
 async function resolveExamGenerationSettings(ctx: AuthenticatedCtx): Promise<ExamGenerationSettings> {
@@ -157,101 +83,6 @@ async function resolveExamGenerationSettings(ctx: AuthenticatedCtx): Promise<Exa
   };
 }
 
-async function assertAdminUser(ctx: MutationCtx): Promise<Doc<"users">> {
-  const user = await getAuthenticatedUser(ctx);
-  if (!user) {
-    throw new Error("Authentication is required.");
-  }
-  if (user.role !== "admin") {
-    throw new Error("Only administrators can change official exam settings.");
-  }
-  return user;
-}
-
-async function insertExamAuditLog(
-  ctx: MutationCtx,
-  input: {
-    examAttemptId: Doc<"examAttempts">["_id"];
-    userId: Doc<"users">["_id"];
-    eventType: ExamAuditEventType;
-    message: string;
-    metadata?: Record<string, unknown>;
-  }
-): Promise<void> {
-  await ctx.db.insert("examAuditLogs", {
-    examAttemptId: input.examAttemptId,
-    userId: input.userId,
-    eventType: input.eventType,
-    message: input.message,
-    metadataJson: input.metadata ? JSON.stringify(input.metadata) : undefined,
-    createdAt: Date.now(),
-  });
-}
-
-async function insertExamResultAccessLog(
-  ctx: MutationCtx,
-  input: {
-    result: Doc<"examResults">;
-    actorUser: Doc<"users">;
-    accessType: ResultAccessType;
-    metadata?: Record<string, unknown>;
-  }
-): Promise<void> {
-  await ctx.db.insert("examResultAccessLogs", {
-    examResultId: input.result._id,
-    examAttemptId: input.result.examAttemptId,
-    targetUserId: input.result.userId,
-    actorUserId: input.actorUser._id,
-    actorRole: input.actorUser.role,
-    accessType: input.accessType,
-    metadataJson: input.metadata ? JSON.stringify(input.metadata) : undefined,
-    createdAt: Date.now(),
-  });
-}
-
-async function rejectExamSubmission(
-  ctx: MutationCtx,
-  input: {
-    examAttemptId: Doc<"examAttempts">["_id"];
-    userId: Doc<"users">["_id"];
-    questionIndex: number;
-    reason: string;
-    auditMessage: string;
-    throwMessage?: string;
-    eventType?: Extract<
-      ExamAuditEventType,
-      "submission_rejected" | "session_token_rejected" | "immutable_write_blocked"
-    >;
-    metadata?: Record<string, unknown>;
-  }
-): Promise<never> {
-  await insertExamAuditLog(ctx, {
-    examAttemptId: input.examAttemptId,
-    userId: input.userId,
-    eventType: input.eventType ?? "submission_rejected",
-    message: input.auditMessage,
-    metadata: {
-      questionIndex: input.questionIndex,
-      reason: input.reason,
-      ...input.metadata,
-    },
-  });
-
-  throw new Error(input.throwMessage ?? input.auditMessage);
-}
-
-async function getOwnedAttempt(
-  ctx: AuthenticatedCtx,
-  userId: Doc<"users">["_id"],
-  examAttemptId: Doc<"examAttempts">["_id"]
-): Promise<Doc<"examAttempts"> | null> {
-  const attempt = await ctx.db.get(examAttemptId);
-  if (!attempt || attempt.userId !== userId) {
-    return null;
-  }
-  return attempt;
-}
-
 async function getAttemptQuestions(
   ctx: AuthenticatedCtx,
   examAttemptId: Doc<"examAttempts">["_id"]
@@ -260,16 +91,6 @@ async function getAttemptQuestions(
     .query("examQuestions")
     .withIndex("by_attempt", (q) => q.eq("examAttemptId", examAttemptId))
     .collect();
-}
-
-function canAccessResultRecord(
-  user: Doc<"users">,
-  result: Doc<"examResults">
-): boolean {
-  if (user.role === "admin") {
-    return true;
-  }
-  return result.userId === user._id;
 }
 
 function mapOfficialResultRecord(result: Doc<"examResults">) {
@@ -489,60 +310,6 @@ async function buildPercentileRanking(
   };
 }
 
-function getCurrentQuestionIndex(questions: Doc<"examQuestions">[]): number | null {
-  const sorted = [...questions].sort((a, b) => a.questionIndex - b.questionIndex);
-  const next = sorted.find((question) => question.userAnswer === null);
-  return next ? next.questionIndex : null;
-}
-
-function getLastAnsweredAt(questions: Doc<"examQuestions">[]): number | null {
-  return questions
-    .map((question) => question.answeredAt ?? null)
-    .filter((answeredAt): answeredAt is number => answeredAt !== null)
-    .sort((a, b) => b - a)[0] ?? null;
-}
-
-function roundToTwoDecimals(value: number): number {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
-}
-
-function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== "object") {
-    return JSON.stringify(value);
-  }
-
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
-  }
-
-  const entries = Object.entries(value as Record<string, unknown>)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`);
-
-  return `{${entries.join(",")}}`;
-}
-
-function fallbackHashHex(input: string): string {
-  // Deterministic fallback hash when SubtleCrypto is unavailable.
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < input.length; index += 1) {
-    hash ^= input.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return (hash >>> 0).toString(16).padStart(8, "0");
-}
-
-async function sha256Hex(input: string): Promise<string> {
-  if (!("crypto" in globalThis) || !globalThis.crypto?.subtle) {
-    return fallbackHashHex(input);
-  }
-
-  const data = new TextEncoder().encode(input);
-  const digest = await globalThis.crypto.subtle.digest("SHA-256", data);
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 function buildCertificateNumber(input: {
   completedAt: number;
@@ -555,23 +322,6 @@ function buildCertificateNumber(input: {
   const dd = String(date.getUTCDate()).padStart(2, "0");
   const compactAttemptId = input.examAttemptId.replace(/[^a-zA-Z0-9]/g, "").slice(-8).toUpperCase();
   return `OSM-${yyyy}${mm}${dd}-${String(input.attemptNumber).padStart(3, "0")}-${compactAttemptId}`;
-}
-
-function getQuestionResponseTimeMs(input: {
-  startedAt: number;
-  sortedQuestions: Doc<"examQuestions">[];
-  index: number;
-}): number | undefined {
-  const current = input.sortedQuestions[input.index];
-  const currentAnsweredAt = current.answeredAt;
-  if (!currentAnsweredAt) {
-    return undefined;
-  }
-
-  const previous = input.sortedQuestions[input.index - 1];
-  const baseline = previous?.answeredAt ?? input.startedAt;
-  const delta = currentAnsweredAt - baseline;
-  return delta >= 0 ? delta : 0;
 }
 
 function buildCompletedExamStats(
@@ -664,18 +414,6 @@ async function resolveFlagPrompt(
   return question.mode === "learn"
     ? { imagePath: snapshotFlag.imagePath }
     : { meaning: snapshotFlag.meaning };
-}
-
-async function getAuthenticatedUser(ctx: AuthenticatedCtx): Promise<Doc<"users"> | null> {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) {
-    return null;
-  }
-
-  return ctx.db
-    .query("users")
-    .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-    .unique();
 }
 
 async function getExamStartData(

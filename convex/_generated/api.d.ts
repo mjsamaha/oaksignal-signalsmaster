@@ -10,6 +10,11 @@
 
 import type * as analytics from "../analytics.js";
 import type * as exams from "../exams.js";
+import type * as exams_services_audit from "../exams/services/audit.js";
+import type * as exams_services_auth from "../exams/services/auth.js";
+import type * as exams_services_config from "../exams/services/config.js";
+import type * as exams_services_hash from "../exams/services/hash.js";
+import type * as exams_services_time from "../exams/services/time.js";
 import type * as flags from "../flags.js";
 import type * as lib_distractor_generation from "../lib/distractor_generation.js";
 import type * as lib_exam_checksum from "../lib/exam_checksum.js";
@@ -40,6 +45,11 @@ import type {
 declare const fullApi: ApiFromModules<{
   analytics: typeof analytics;
   exams: typeof exams;
+  "exams/services/audit": typeof exams_services_audit;
+  "exams/services/auth": typeof exams_services_auth;
+  "exams/services/config": typeof exams_services_config;
+  "exams/services/hash": typeof exams_services_hash;
+  "exams/services/time": typeof exams_services_time;
   flags: typeof flags;
   "lib/distractor_generation": typeof lib_distractor_generation;
   "lib/exam_checksum": typeof lib_exam_checksum;
