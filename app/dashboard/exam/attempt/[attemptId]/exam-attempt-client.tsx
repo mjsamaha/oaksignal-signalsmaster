@@ -2,9 +2,9 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useCallback } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useMutation, useQuery } from "convex/react"
-import { formatDistanceToNow } from "date-fns"
+import { formatDistanceToNow, format } from "date-fns"
 
 import { Id } from "@/convex/_generated/dataModel"
 import { api } from "@/convex/_generated/api"
@@ -14,6 +14,7 @@ import {
   ExamAttemptRuntimeProgress,
   ExamQuestionPublic,
   ExamQuestionSubmissionResult,
+  OfficialExamResult,
 } from "@/lib/exam-types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -41,6 +42,23 @@ function isValidNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value)
 }
 
+function formatDateTime(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "N/A"
+  }
+  return format(value, "PPP p")
+}
+
+function formatHashSnippet(value: string | null | undefined): string {
+  if (!value) {
+    return "N/A"
+  }
+  if (value.length <= 16) {
+    return value
+  }
+  return `${value.slice(0, 8)}...${value.slice(-8)}`
+}
+
 export function ExamAttemptClient({ attemptId }: ExamAttemptClientProps) {
   const router = useRouter()
   const attempt = useQuery(api.exams.getAttemptById, { examAttemptId: attemptId }) as
@@ -58,6 +76,10 @@ export function ExamAttemptClient({ attemptId }: ExamAttemptClientProps) {
   }) as { currentQuestionImages: string[]; nextQuestionImages: string[] } | null | undefined
   const submitExamAnswer = useMutation(api.exams.submitExamAnswer)
   const logExamClientEvent = useMutation(api.exams.logExamClientEvent)
+  const getMyOfficialResult = useMutation(api.exams.getMyOfficialResult)
+
+  const [officialResult, setOfficialResult] = useState<OfficialExamResult | null | undefined>(undefined)
+  const [officialResultError, setOfficialResultError] = useState<string | null>(null)
 
   const isExamActive = runtimeProgress?.status === "started"
 
@@ -104,6 +126,34 @@ export function ExamAttemptClient({ attemptId }: ExamAttemptClientProps) {
     currentQuestionImages: preload?.currentQuestionImages,
     nextQuestionImages: preload?.nextQuestionImages,
   })
+
+  useEffect(() => {
+    if (runtimeProgress?.status !== "completed") {
+      return
+    }
+
+    let cancelled = false
+
+    void getMyOfficialResult({ examAttemptId: attemptId })
+      .then((result) => {
+        if (cancelled) {
+          return
+        }
+        setOfficialResult((result as OfficialExamResult | null) ?? null)
+        setOfficialResultError(null)
+      })
+      .catch(() => {
+        if (cancelled) {
+          return
+        }
+        setOfficialResult(null)
+        setOfficialResultError("Official immutable result record could not be loaded.")
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [attemptId, getMyOfficialResult, runtimeProgress?.status])
 
   if (attempt === undefined || runtimeProgress === undefined || currentQuestion === undefined) {
     return (
@@ -159,12 +209,35 @@ export function ExamAttemptClient({ attemptId }: ExamAttemptClientProps) {
   }
 
   const result = attempt.result
-  const hasModeStats = Boolean(result?.modeStats)
-  const hasCategoryStats = Boolean(result?.categoryStats && result.categoryStats.length > 0)
+  const isCompleted = runtimeProgress.status === "completed"
+  const effectiveOfficialResult = isCompleted ? officialResult : undefined
+  const effectiveOfficialResultError = isCompleted ? officialResultError : null
+  const isOfficialResultLoading = isCompleted && effectiveOfficialResult === undefined && !effectiveOfficialResultError
+  const hasImmutableOfficialResult = Boolean(effectiveOfficialResult)
+  const completionScore = hasImmutableOfficialResult
+    ? effectiveOfficialResult?.scorePercent
+    : result?.scorePercent
+  const completionCorrect = hasImmutableOfficialResult
+    ? effectiveOfficialResult?.totalCorrect
+    : result?.correctCount
+  const completionTotal = hasImmutableOfficialResult
+    ? effectiveOfficialResult?.totalQuestions
+    : result?.totalQuestions
+  const completionPassed = hasImmutableOfficialResult
+    ? effectiveOfficialResult?.passed
+    : result?.passed
+  const completionModeStats = hasImmutableOfficialResult
+    ? effectiveOfficialResult?.modeStats
+    : result?.modeStats
+  const completionCategoryStats = hasImmutableOfficialResult
+    ? effectiveOfficialResult?.categoryStats
+    : result?.categoryStats
+  const hasModeStats = Boolean(completionModeStats)
+  const hasCategoryStats = Boolean(completionCategoryStats && completionCategoryStats.length > 0)
 
   return (
     <div className="container mx-auto max-w-4xl space-y-6 py-6">
-      {runtimeProgress.status === "completed" ? (
+      {isCompleted ? (
         <div className="space-y-2">
           <Badge variant="destructive" className="uppercase tracking-wide">
             Official Examination
@@ -211,47 +284,98 @@ export function ExamAttemptClient({ attemptId }: ExamAttemptClientProps) {
             </div>
           </CardContent>
         </Card>
-      ) : runtimeProgress.status === "completed" ? (
+      ) : isCompleted ? (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Exam Completed</CardTitle>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-xl">Official Result Certificate</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Immutable result snapshot for attempt #{attempt.attemptNumber}
+                </p>
+              </div>
+              <Badge variant={completionPassed ? "default" : "destructive"} className="px-3 py-1 text-xs uppercase tracking-wide">
+                {completionPassed ? "Pass" : "Not Passed"}
+              </Badge>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              You completed this official exam{" "}
-              {attempt.completedAt
-                ? formatDistanceToNow(attempt.completedAt, { addSuffix: true })
-                : "recently"}
-              .
+              Completed {attempt.completedAt ? formatDistanceToNow(attempt.completedAt, { addSuffix: true }) : "recently"}.
             </p>
-            {result && (
-              <div className="rounded-md border bg-muted/40 p-4 text-sm">
-                <p>Score: <span className="font-semibold">{formatScorePercent(result.scorePercent)}</span></p>
-                <p>
-                  Correct answers: <span className="font-semibold">
-                    {isValidNumber(result.correctCount) ? result.correctCount : "N/A"}/
-                    {isValidNumber(result.totalQuestions) ? result.totalQuestions : "N/A"}
-                  </span>
-                </p>
-                <p>Status: <span className="font-semibold">{result.passed ? "Passed" : "Not Passed"}</span></p>
 
-                {hasModeStats && result.modeStats && (
-                  <div className="mt-3 border-t pt-3">
+            {isOfficialResultLoading ? (
+              <div className="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">
+                Loading immutable certificate record...
+              </div>
+            ) : (
+              <div className="rounded-lg border bg-muted/30 p-4 md:p-5">
+                <div className="grid gap-3 text-sm md:grid-cols-2">
+                  <div>
+                    <p className="text-muted-foreground">Certificate Number</p>
+                    <p className="font-medium">
+                      {effectiveOfficialResult?.certificateNumber ?? "Legacy record (no certificate number)"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Cadet Name</p>
+                    <p className="font-medium">{effectiveOfficialResult?.userSnapshot.fullName ?? "Name unavailable"}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Started</p>
+                    <p className="font-medium">{formatDateTime(effectiveOfficialResult?.startedAt ?? attempt.startedAt)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Completed</p>
+                    <p className="font-medium">{formatDateTime(effectiveOfficialResult?.completedAt ?? attempt.completedAt ?? null)}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 rounded-md border bg-background p-4 text-sm md:grid-cols-3">
+                  <div>
+                    <p className="text-muted-foreground">Final Score</p>
+                    <p className="text-lg font-semibold">{formatScorePercent(completionScore)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Correct Answers</p>
+                    <p className="text-lg font-semibold">
+                      {isValidNumber(completionCorrect) ? completionCorrect : "N/A"}/
+                      {isValidNumber(completionTotal) ? completionTotal : "N/A"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Integrity Hash</p>
+                    <p className="text-lg font-semibold">{formatHashSnippet(effectiveOfficialResult?.recordChecksum)}</p>
+                  </div>
+                </div>
+
+                {!hasImmutableOfficialResult && (
+                  <p className="mt-3 text-xs text-amber-700">
+                    Immutable result record is not available yet. Rendering legacy completion data.
+                  </p>
+                )}
+
+                {effectiveOfficialResultError && (
+                  <p className="mt-2 text-xs text-amber-700">{effectiveOfficialResultError}</p>
+                )}
+
+                {hasModeStats && completionModeStats && (
+                  <div className="mt-4 border-t pt-3 text-sm">
                     <p className="mb-2 font-medium">Mode Breakdown</p>
                     <p>
-                      Learn: {result.modeStats.learn.correct}/{result.modeStats.learn.total} correct
+                      Learn: {completionModeStats.learn.correct}/{completionModeStats.learn.total} correct
                     </p>
                     <p>
-                      Match: {result.modeStats.match.correct}/{result.modeStats.match.total} correct
+                      Match: {completionModeStats.match.correct}/{completionModeStats.match.total} correct
                     </p>
                   </div>
                 )}
 
-                {hasCategoryStats && result.categoryStats && (
-                  <div className="mt-3 border-t pt-3">
+                {hasCategoryStats && completionCategoryStats && (
+                  <div className="mt-4 border-t pt-3 text-sm">
                     <p className="mb-2 font-medium">Category Breakdown</p>
                     <div className="space-y-1">
-                      {result.categoryStats.map((item) => (
+                      {completionCategoryStats.map((item) => (
                         <p key={item.category}>
                           {item.category}: {item.correct}/{item.total} correct
                         </p>
