@@ -1,32 +1,18 @@
 import { v } from "convex/values";
-import { mutation, query, MutationCtx } from "./_generated/server";
+import { mutation, MutationCtx } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
 import {
-  buildExamPolicySnapshot,
-  estimateExamDurationMinutes,
-  OFFICIAL_EXAM_MIN_RULES_VIEW_DURATION_MS,
-  OFFICIAL_EXAM_MIN_PRACTICE_SESSIONS,
-  SUPPORTED_BROWSERS,
-} from "./lib/exam_policy";
-import {
   getExamAcknowledgementErrors,
-  getExamStartBlockers,
 } from "./lib/exam_start_validators";
 import { generateExamQuestions, applyExamAttemptToQuestions } from "./lib/exam_generation";
 import { generateExamSeed } from "./lib/exam_randomization";
-import {
-  ExamModeStrategy,
-  ExamQuestionMode,
-} from "./lib/exam_types";
 import { buildQuestionChecksum } from "./lib/exam_checksum";
 import {
-  deriveExamSessionToken,
   issueExamSessionToken,
   validateExamSessionToken,
 } from "./lib/exam_session_token";
 import {
   assertAdminUser,
-  AuthenticatedCtx,
   canAccessResultRecord,
   getAuthenticatedUser,
   getOwnedAttempt,
@@ -43,55 +29,26 @@ import {
 } from "./exams/services/audit";
 import {
   getCurrentQuestionIndex,
-  getLastAnsweredAt,
   getQuestionResponseTimeMs,
   roundToTwoDecimals,
 } from "./exams/services/time";
 import { sha256Hex, stableStringify } from "./exams/services/hash";
+import {
+  EXAM_START_CONSTANTS,
+  buildExamPolicy,
+  getAttemptQuestions,
+  getExamStartData,
+  resolveExamGenerationSettings,
+} from "./exams/services/query_helpers";
 
-interface ExamStartData {
-  totalQuestions: number;
-  expectedDurationMinutes: number;
-  totalPracticeSessions: number;
-  practiceAveragePercent: number;
-  latestAttempt: Doc<"examAttempts"> | null;
-  hasOfficialAttempt: boolean;
-  blockers: string[];
-}
-
-interface ExamGenerationSettings {
-  modeStrategy: ExamModeStrategy;
-  singleMode?: ExamQuestionMode;
-}
-
-async function resolveExamGenerationSettings(ctx: AuthenticatedCtx): Promise<ExamGenerationSettings> {
-  const settings = await ctx.db
-    .query("examSettings")
-    .withIndex("by_updatedAt")
-    .order("desc")
-    .first();
-
-  if (!settings) {
-    return {
-      modeStrategy: "alternating",
-    };
-  }
-
-  return {
-    modeStrategy: settings.modeStrategy,
-    singleMode: settings.modeStrategy === "single" ? settings.singleMode : undefined,
-  };
-}
-
-async function getAttemptQuestions(
-  ctx: AuthenticatedCtx,
-  examAttemptId: Doc<"examAttempts">["_id"]
-): Promise<Doc<"examQuestions">[]> {
-  return ctx.db
-    .query("examQuestions")
-    .withIndex("by_attempt", (q) => q.eq("examAttemptId", examAttemptId))
-    .collect();
-}
+export { getExamStartContext, getAttemptHistory } from "./exams/handlers/start";
+export { getExamGenerationSettings } from "./exams/handlers/settings";
+export {
+  getAttemptRuntimeProgress,
+  getCurrentAttemptQuestion,
+  getAttemptPreload,
+  getAttemptById,
+} from "./exams/handlers/runtime";
 
 function mapOfficialResultRecord(result: Doc<"examResults">) {
   return {
@@ -123,43 +80,6 @@ function mapOfficialResultRecord(result: Doc<"examResults">) {
   };
 }
 
-function mapImmutableResultToAttemptResult(result: Doc<"examResults">): {
-  totalQuestions: number;
-  correctCount: number;
-  scorePercent: number;
-  passed: boolean;
-  modeStats?: {
-    learn: { total: number; correct: number; incorrect: number };
-    match: { total: number; correct: number; incorrect: number };
-  };
-  categoryStats?: Array<{ category: string; total: number; correct: number; incorrect: number }>;
-} {
-  return {
-    totalQuestions: result.totalQuestions,
-    correctCount: result.totalCorrect,
-    scorePercent: result.scorePercent,
-    passed: result.passed,
-    modeStats: result.modeStats,
-    categoryStats: result.categoryStats,
-  };
-}
-
-async function getImmutableResultForAttempt(
-  ctx: AuthenticatedCtx,
-  attempt: Doc<"examAttempts">
-): Promise<Doc<"examResults"> | null> {
-  if (attempt.examResultId) {
-    const linked = await ctx.db.get(attempt.examResultId);
-    if (linked) {
-      return linked;
-    }
-  }
-
-  return ctx.db
-    .query("examResults")
-    .withIndex("by_attempt", (q) => q.eq("examAttemptId", attempt._id))
-    .first();
-}
 
 function buildCanonicalOfficialResultPayload(result: Doc<"examResults">) {
   return {
@@ -394,140 +314,6 @@ function buildCompletedExamStats(
   };
 }
 
-async function resolveFlagPrompt(
-  ctx: AuthenticatedCtx,
-  attempt: Doc<"examAttempts">,
-  question: Doc<"examQuestions">
-): Promise<{ imagePath?: string; meaning?: string }> {
-  const flag = await ctx.db.get(question.flagId);
-  if (flag) {
-    return question.mode === "learn"
-      ? { imagePath: flag.imagePath }
-      : { meaning: flag.meaning };
-  }
-
-  const snapshotFlag = attempt.flagSnapshot?.find((item) => item.flagId === question.flagId);
-  if (!snapshotFlag) {
-    throw new Error("Unable to resolve question prompt for this exam attempt.");
-  }
-
-  return question.mode === "learn"
-    ? { imagePath: snapshotFlag.imagePath }
-    : { meaning: snapshotFlag.meaning };
-}
-
-async function getExamStartData(
-  ctx: AuthenticatedCtx,
-  user: Doc<"users">
-): Promise<ExamStartData> {
-  const allFlags = await ctx.db
-    .query("flags")
-    .withIndex("by_order")
-    .collect();
-
-  const totalQuestions = allFlags.length;
-  const expectedDurationMinutes = estimateExamDurationMinutes(totalQuestions);
-
-  const completedPracticeSessions = await ctx.db
-    .query("practiceSessions")
-    .withIndex("by_user_status", (q) =>
-      q.eq("userId", user._id).eq("status", "completed")
-    )
-    .collect();
-
-  const totalPracticeSessions = completedPracticeSessions.length;
-  const practiceAveragePercent =
-    totalPracticeSessions > 0
-      ? Math.round(
-          completedPracticeSessions.reduce((sum, session) => sum + session.score, 0) /
-            totalPracticeSessions
-        )
-      : 0;
-
-  const latestAttempt = await ctx.db
-    .query("examAttempts")
-    .withIndex("by_user_startedAt", (q) => q.eq("userId", user._id))
-    .order("desc")
-    .first();
-
-  const hasOfficialAttempt = Boolean(latestAttempt);
-
-  const blockers = getExamStartBlockers({
-    userRole: user.role,
-    totalQuestions,
-    userPracticeSessions: totalPracticeSessions,
-    hasOfficialAttempt,
-  });
-
-  return {
-    totalQuestions,
-    expectedDurationMinutes,
-    totalPracticeSessions,
-    practiceAveragePercent,
-    latestAttempt,
-    hasOfficialAttempt,
-    blockers,
-  };
-}
-
-export const getExamStartContext = query({
-  args: {},
-  handler: async (ctx) => {
-    const user = await getAuthenticatedUser(ctx);
-    if (!user) {
-      return null;
-    }
-
-    const startData = await getExamStartData(ctx, user);
-    const examPolicy = buildExamPolicySnapshot(startData.totalQuestions);
-    const generationSettings = await resolveExamGenerationSettings(ctx);
-
-    return {
-      examPolicy,
-      questionModePolicy: generationSettings,
-      expectedDurationMinutes: startData.expectedDurationMinutes,
-      minimumRulesViewDurationMs: OFFICIAL_EXAM_MIN_RULES_VIEW_DURATION_MS,
-      prerequisite: {
-        minimumPracticeSessions: OFFICIAL_EXAM_MIN_PRACTICE_SESSIONS,
-        userPracticeSessions: startData.totalPracticeSessions,
-        userPracticeAveragePercent: startData.practiceAveragePercent,
-        met: startData.totalPracticeSessions >= OFFICIAL_EXAM_MIN_PRACTICE_SESSIONS,
-      },
-      eligibility: {
-        canStart: startData.blockers.length === 0,
-        blockers: startData.blockers,
-      },
-      systemRequirements: {
-        stableInternetRequired: true,
-        recommendedBrowsers: [...SUPPORTED_BROWSERS],
-      },
-      proctorInfo: null,
-      motivationalMessage: "You've prepared well, good luck!",
-      attemptSummary: {
-        hasOfficialAttempt: startData.hasOfficialAttempt,
-        latestAttemptStatus: startData.latestAttempt?.status ?? null,
-        latestStartedAt: startData.latestAttempt?.startedAt ?? null,
-      },
-    };
-  },
-});
-
-export const getExamGenerationSettings = query({
-  args: {},
-  handler: async (ctx) => {
-    const user = await getAuthenticatedUser(ctx);
-    if (!user) {
-      return null;
-    }
-
-    if (user.role !== "admin") {
-      return null;
-    }
-
-    const generationSettings = await resolveExamGenerationSettings(ctx);
-    return generationSettings;
-  },
-});
 
 export const setExamGenerationSettings = mutation({
   args: {
@@ -605,7 +391,7 @@ export const startOfficialExamAttempt = mutation({
       rulesAcknowledged: args.rulesAcknowledged,
       readinessAcknowledged: args.readinessAcknowledged,
       rulesViewDurationMs: args.rulesViewDurationMs,
-      minimumRulesViewDurationMs: OFFICIAL_EXAM_MIN_RULES_VIEW_DURATION_MS,
+      minimumRulesViewDurationMs: EXAM_START_CONSTANTS.OFFICIAL_EXAM_MIN_RULES_VIEW_DURATION_MS,
     });
 
     if (acknowledgementErrors.length > 0) {
@@ -613,7 +399,7 @@ export const startOfficialExamAttempt = mutation({
     }
 
     const requestReceivedAt = Date.now();
-    const examPolicy = buildExamPolicySnapshot(startData.totalQuestions);
+    const examPolicy = buildExamPolicy(startData.totalQuestions);
     const generationSettings = await resolveExamGenerationSettings(ctx);
     const allFlags = await ctx.db
       .query("flags")
@@ -673,7 +459,7 @@ export const startOfficialExamAttempt = mutation({
       rulesViewDurationMs: args.rulesViewDurationMs,
       policySnapshot: examPolicy,
       prerequisiteSnapshot: {
-        minimumPracticeSessionsRequired: OFFICIAL_EXAM_MIN_PRACTICE_SESSIONS,
+        minimumPracticeSessionsRequired: EXAM_START_CONSTANTS.OFFICIAL_EXAM_MIN_PRACTICE_SESSIONS,
         userPracticeSessions: startData.totalPracticeSessions,
         userPracticeAveragePercent: startData.practiceAveragePercent,
       },
@@ -760,192 +546,6 @@ export const startOfficialExamAttempt = mutation({
       startedAt: examStartedAt,
       sessionToken: sessionToken.token,
       sessionExpiresAt: sessionToken.expiresAt,
-    };
-  },
-});
-
-export const getAttemptHistory = query({
-  args: {
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx);
-    if (!user) {
-      return null;
-    }
-
-    const limit = args.limit ?? 5;
-    if (!Number.isInteger(limit) || limit < 1 || limit > 20) {
-      throw new Error("Limit must be an integer between 1 and 20");
-    }
-
-    const attempts = await ctx.db
-      .query("examAttempts")
-      .withIndex("by_user_startedAt", (q) => q.eq("userId", user._id))
-      .order("desc")
-      .take(limit);
-
-    const mapped = await Promise.all(
-      attempts.map(async (attempt) => {
-        const immutableResult = await getImmutableResultForAttempt(ctx, attempt);
-        const effectiveResult = immutableResult
-          ? mapImmutableResultToAttemptResult(immutableResult)
-          : (attempt.result ?? null);
-
-        return {
-          examAttemptId: attempt._id,
-          attemptNumber: attempt.attemptNumber,
-          status: attempt.status,
-          startedAt: attempt.startedAt,
-          completedAt: attempt.completedAt ?? null,
-          scorePercent: effectiveResult?.scorePercent ?? null,
-          passed: effectiveResult?.passed ?? null,
-        };
-      })
-    );
-
-    return mapped;
-  },
-});
-
-export const getAttemptRuntimeProgress = query({
-  args: {
-    examAttemptId: v.id("examAttempts"),
-  },
-  handler: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx);
-    if (!user) {
-      return null;
-    }
-
-    const attempt = await getOwnedAttempt(ctx, user._id, args.examAttemptId);
-    if (!attempt) {
-      return null;
-    }
-
-    const questions = await getAttemptQuestions(ctx, args.examAttemptId);
-    const totalQuestions = questions.length;
-    const answeredCount = questions.filter((question) => question.userAnswer !== null).length;
-    const currentQuestionIndex = getCurrentQuestionIndex(questions);
-    const remainingCount = Math.max(0, totalQuestions - answeredCount);
-    const completionPercent = totalQuestions > 0
-      ? Math.round((answeredCount / totalQuestions) * 100)
-      : 0;
-    const elapsedMs = Math.max(
-      0,
-      (attempt.completedAt ?? Date.now()) - attempt.startedAt
-    );
-    const lastAnsweredAt = getLastAnsweredAt(questions);
-
-    return {
-      examAttemptId: attempt._id,
-      status: attempt.status,
-      totalQuestions,
-      answeredCount,
-      currentQuestionIndex,
-      remainingCount,
-      completionPercent,
-      elapsedMs,
-      lastAnsweredAt,
-      startedAt: attempt.startedAt,
-      completedAt: attempt.completedAt ?? null,
-      generationSnapshot: attempt.generationSnapshot ?? null,
-    };
-  },
-});
-
-export const getCurrentAttemptQuestion = query({
-  args: {
-    examAttemptId: v.id("examAttempts"),
-  },
-  handler: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx);
-    if (!user) {
-      return null;
-    }
-
-    const attempt = await getOwnedAttempt(ctx, user._id, args.examAttemptId);
-    if (!attempt || attempt.status !== "started") {
-      return null;
-    }
-
-    const questions = await getAttemptQuestions(ctx, args.examAttemptId);
-    const nextQuestionIndex = getCurrentQuestionIndex(questions);
-    if (nextQuestionIndex === null) {
-      return null;
-    }
-
-    const question = questions.find((item) => item.questionIndex === nextQuestionIndex);
-    if (!question) {
-      throw new Error("Current exam question was not found.");
-    }
-
-    const prompt = await resolveFlagPrompt(ctx, attempt, question);
-
-    return {
-      questionIndex: question.questionIndex,
-      flagKey: question.flagKey,
-      mode: question.mode,
-      options: question.options,
-      prompt,
-    };
-  },
-});
-
-export const getAttemptPreload = query({
-  args: {
-    examAttemptId: v.id("examAttempts"),
-  },
-  handler: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx);
-    if (!user) {
-      return null;
-    }
-
-    const attempt = await getOwnedAttempt(ctx, user._id, args.examAttemptId);
-    if (!attempt || attempt.status !== "started") {
-      return null;
-    }
-
-    const questions = (await getAttemptQuestions(ctx, args.examAttemptId))
-      .sort((a, b) => a.questionIndex - b.questionIndex);
-    const currentIndex = getCurrentQuestionIndex(questions);
-    if (currentIndex === null) {
-      return {
-        currentQuestionImages: [] as string[],
-        nextQuestionImages: [] as string[],
-      };
-    }
-
-    const currentQuestion = questions.find((question) => question.questionIndex === currentIndex);
-    const nextQuestion = questions.find((question) => question.questionIndex === currentIndex + 1);
-
-    const collectImages = async (
-      question: Doc<"examQuestions"> | undefined
-    ): Promise<string[]> => {
-      if (!question) {
-        return [];
-      }
-
-      const images = new Set<string>();
-      if (question.mode === "learn") {
-        const prompt = await resolveFlagPrompt(ctx, attempt, question);
-        if (prompt.imagePath) {
-          images.add(prompt.imagePath);
-        }
-      }
-
-      for (const option of question.options) {
-        if (option.imagePath) {
-          images.add(option.imagePath);
-        }
-      }
-      return [...images];
-    };
-
-    return {
-      currentQuestionImages: await collectImages(currentQuestion),
-      nextQuestionImages: await collectImages(nextQuestion),
     };
   },
 });
@@ -1463,74 +1063,6 @@ export const submitExamAnswer = mutation({
       answeredCount,
       totalQuestions,
       isExamComplete,
-    };
-  },
-});
-
-export const getAttemptById = query({
-  args: {
-    examAttemptId: v.id("examAttempts"),
-  },
-  handler: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx);
-    if (!user) {
-      return null;
-    }
-
-    const attempt = await ctx.db.get(args.examAttemptId);
-    if (!attempt || attempt.userId !== user._id) {
-      return null;
-    }
-
-    let sessionToken: string | null = null;
-    if (attempt.sessionIssuedAt && attempt.sessionExpiresAt && attempt.sessionTokenHash) {
-      try {
-        const derivedToken = await deriveExamSessionToken({
-          examAttemptId: attempt._id,
-          userId: user._id,
-          issuedAt: attempt.sessionIssuedAt,
-          expiresAt: attempt.sessionExpiresAt,
-        });
-
-        const validation = await validateExamSessionToken({
-          token: derivedToken,
-          examAttemptId: attempt._id,
-          userId: user._id,
-          issuedAt: attempt.sessionIssuedAt,
-          expiresAt: attempt.sessionExpiresAt,
-          expectedHash: attempt.sessionTokenHash,
-        });
-
-        if (validation.valid) {
-          sessionToken = derivedToken;
-        }
-      } catch {
-        sessionToken = null;
-      }
-    }
-
-    const immutableResult = await getImmutableResultForAttempt(ctx, attempt);
-    const effectiveResult = immutableResult
-      ? mapImmutableResultToAttemptResult(immutableResult)
-      : (attempt.result ?? null);
-
-    return {
-      examAttemptId: attempt._id,
-      attemptNumber: attempt.attemptNumber,
-      status: attempt.status,
-      startedAt: attempt.startedAt,
-      completedAt: attempt.completedAt ?? null,
-      sessionIssuedAt: attempt.sessionIssuedAt ?? null,
-      sessionExpiresAt: attempt.sessionExpiresAt ?? null,
-      sessionToken,
-      rulesAcknowledgedAt: attempt.rulesAcknowledgedAt,
-      readinessAcknowledgedAt: attempt.readinessAcknowledgedAt,
-      rulesViewDurationMs: attempt.rulesViewDurationMs,
-      policySnapshot: attempt.policySnapshot,
-      prerequisiteSnapshot: attempt.prerequisiteSnapshot,
-      systemSnapshot: attempt.systemSnapshot,
-      generationSnapshot: attempt.generationSnapshot ?? null,
-      result: effectiveResult,
     };
   },
 });

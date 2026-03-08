@@ -10,10 +10,14 @@
 
 import type * as analytics from "../analytics.js";
 import type * as exams from "../exams.js";
+import type * as exams_handlers_runtime from "../exams/handlers/runtime.js";
+import type * as exams_handlers_settings from "../exams/handlers/settings.js";
+import type * as exams_handlers_start from "../exams/handlers/start.js";
 import type * as exams_services_audit from "../exams/services/audit.js";
 import type * as exams_services_auth from "../exams/services/auth.js";
 import type * as exams_services_config from "../exams/services/config.js";
 import type * as exams_services_hash from "../exams/services/hash.js";
+import type * as exams_services_query_helpers from "../exams/services/query_helpers.js";
 import type * as exams_services_time from "../exams/services/time.js";
 import type * as flags from "../flags.js";
 import type * as lib_distractor_generation from "../lib/distractor_generation.js";
@@ -45,10 +49,14 @@ import type {
 declare const fullApi: ApiFromModules<{
   analytics: typeof analytics;
   exams: typeof exams;
+  "exams/handlers/runtime": typeof exams_handlers_runtime;
+  "exams/handlers/settings": typeof exams_handlers_settings;
+  "exams/handlers/start": typeof exams_handlers_start;
   "exams/services/audit": typeof exams_services_audit;
   "exams/services/auth": typeof exams_services_auth;
   "exams/services/config": typeof exams_services_config;
   "exams/services/hash": typeof exams_services_hash;
+  "exams/services/query_helpers": typeof exams_services_query_helpers;
   "exams/services/time": typeof exams_services_time;
   flags: typeof flags;
   "lib/distractor_generation": typeof lib_distractor_generation;
