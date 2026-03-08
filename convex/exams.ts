@@ -14,7 +14,12 @@ import {
 } from "./lib/exam_start_validators";
 import { generateExamQuestions, applyExamAttemptToQuestions } from "./lib/exam_generation";
 import { generateExamSeed } from "./lib/exam_randomization";
-import { ExamAuditEventType, ExamModeStrategy, ExamQuestionMode } from "./lib/exam_types";
+import {
+  ExamAuditEventType,
+  ExamModeStrategy,
+  ExamQuestionMode,
+  ResultAccessType,
+} from "./lib/exam_types";
 import { buildQuestionChecksum } from "./lib/exam_checksum";
 import {
   deriveExamSessionToken,
@@ -178,6 +183,27 @@ async function insertExamAuditLog(
     userId: input.userId,
     eventType: input.eventType,
     message: input.message,
+    metadataJson: input.metadata ? JSON.stringify(input.metadata) : undefined,
+    createdAt: Date.now(),
+  });
+}
+
+async function insertExamResultAccessLog(
+  ctx: MutationCtx,
+  input: {
+    result: Doc<"examResults">;
+    actorUser: Doc<"users">;
+    accessType: ResultAccessType;
+    metadata?: Record<string, unknown>;
+  }
+): Promise<void> {
+  await ctx.db.insert("examResultAccessLogs", {
+    examResultId: input.result._id,
+    examAttemptId: input.result.examAttemptId,
+    targetUserId: input.result.userId,
+    actorUserId: input.actorUser._id,
+    actorRole: input.actorUser.role,
+    accessType: input.accessType,
     metadataJson: input.metadata ? JSON.stringify(input.metadata) : undefined,
     createdAt: Date.now(),
   });
@@ -1568,7 +1594,7 @@ export const getAttemptById = query({
   },
 });
 
-export const getMyOfficialResult = query({
+export const getMyOfficialResult = mutation({
   args: {
     examAttemptId: v.id("examAttempts"),
   },
@@ -1588,14 +1614,34 @@ export const getMyOfficialResult = query({
     }
 
     if (!canAccessResultRecord(user, result)) {
+      await insertExamResultAccessLog(ctx, {
+        result,
+        actorUser: user,
+        accessType: "result_access_denied",
+        metadata: {
+          endpoint: "getMyOfficialResult",
+          reason: "access_denied",
+          examAttemptId: args.examAttemptId,
+        },
+      });
       return null;
     }
+
+    await insertExamResultAccessLog(ctx, {
+      result,
+      actorUser: user,
+      accessType: "result_read",
+      metadata: {
+        endpoint: "getMyOfficialResult",
+        examAttemptId: args.examAttemptId,
+      },
+    });
 
     return mapOfficialResultRecord(result);
   },
 });
 
-export const getMyOfficialResultsHistory = query({
+export const getMyOfficialResultsHistory = mutation({
   args: {
     limit: v.optional(v.number()),
   },
@@ -1617,6 +1663,19 @@ export const getMyOfficialResultsHistory = query({
         .order("desc")
         .take(limit);
 
+      for (const result of results) {
+        await insertExamResultAccessLog(ctx, {
+          result,
+          actorUser: user,
+          accessType: "result_list",
+          metadata: {
+            endpoint: "getMyOfficialResultsHistory",
+            scope: "admin_all",
+            requestedLimit: limit,
+          },
+        });
+      }
+
       return results.map((result) => ({
         examResultId: result._id,
         examAttemptId: result.examAttemptId,
@@ -1636,6 +1695,19 @@ export const getMyOfficialResultsHistory = query({
       .order("desc")
       .take(limit);
 
+    for (const result of ownResults) {
+      await insertExamResultAccessLog(ctx, {
+        result,
+        actorUser: user,
+        accessType: "result_list",
+        metadata: {
+          endpoint: "getMyOfficialResultsHistory",
+          scope: "cadet_own",
+          requestedLimit: limit,
+        },
+      });
+    }
+
     return ownResults.map((result) => ({
       examResultId: result._id,
       examAttemptId: result.examAttemptId,
@@ -1650,7 +1722,7 @@ export const getMyOfficialResultsHistory = query({
   },
 });
 
-export const getOfficialResultForAdminReview = query({
+export const getOfficialResultForAdminReview = mutation({
   args: {
     examResultId: v.id("examResults"),
   },
@@ -1660,14 +1732,34 @@ export const getOfficialResultForAdminReview = query({
       return null;
     }
 
-    if (user.role !== "admin") {
-      return null;
-    }
-
     const result = await ctx.db.get(args.examResultId);
     if (!result) {
       return null;
     }
+
+    if (user.role !== "admin") {
+      await insertExamResultAccessLog(ctx, {
+        result,
+        actorUser: user,
+        accessType: "result_access_denied",
+        metadata: {
+          endpoint: "getOfficialResultForAdminReview",
+          reason: "admin_required",
+          requestedResultId: args.examResultId,
+        },
+      });
+      return null;
+    }
+
+    await insertExamResultAccessLog(ctx, {
+      result,
+      actorUser: user,
+      accessType: "result_read",
+      metadata: {
+        endpoint: "getOfficialResultForAdminReview",
+        requestedResultId: args.examResultId,
+      },
+    });
 
     return mapOfficialResultRecord(result);
   },
