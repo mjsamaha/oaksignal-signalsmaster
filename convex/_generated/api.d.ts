@@ -10,6 +10,9 @@
 
 import type * as analytics from "../analytics.js";
 import type * as exams from "../exams.js";
+import type * as exams_handlers_clientEvents from "../exams/handlers/clientEvents.js";
+import type * as exams_handlers_maintenance from "../exams/handlers/maintenance.js";
+import type * as exams_handlers_results from "../exams/handlers/results.js";
 import type * as exams_handlers_runtime from "../exams/handlers/runtime.js";
 import type * as exams_handlers_settings from "../exams/handlers/settings.js";
 import type * as exams_handlers_start from "../exams/handlers/start.js";
@@ -20,6 +23,7 @@ import type * as exams_services_auth from "../exams/services/auth.js";
 import type * as exams_services_config from "../exams/services/config.js";
 import type * as exams_services_hash from "../exams/services/hash.js";
 import type * as exams_services_query_helpers from "../exams/services/query_helpers.js";
+import type * as exams_services_result_access from "../exams/services/result_access.js";
 import type * as exams_services_result_builder from "../exams/services/result_builder.js";
 import type * as exams_services_time from "../exams/services/time.js";
 import type * as flags from "../flags.js";
@@ -52,6 +56,9 @@ import type {
 declare const fullApi: ApiFromModules<{
   analytics: typeof analytics;
   exams: typeof exams;
+  "exams/handlers/clientEvents": typeof exams_handlers_clientEvents;
+  "exams/handlers/maintenance": typeof exams_handlers_maintenance;
+  "exams/handlers/results": typeof exams_handlers_results;
   "exams/handlers/runtime": typeof exams_handlers_runtime;
   "exams/handlers/settings": typeof exams_handlers_settings;
   "exams/handlers/start": typeof exams_handlers_start;
@@ -62,6 +69,7 @@ declare const fullApi: ApiFromModules<{
   "exams/services/config": typeof exams_services_config;
   "exams/services/hash": typeof exams_services_hash;
   "exams/services/query_helpers": typeof exams_services_query_helpers;
+  "exams/services/result_access": typeof exams_services_result_access;
   "exams/services/result_builder": typeof exams_services_result_builder;
   "exams/services/time": typeof exams_services_time;
   flags: typeof flags;
