@@ -57,7 +57,7 @@ export async function POST(req: Request) {
     const { id, email_addresses, first_name, last_name, public_metadata } = evt.data;
     const email = email_addresses[0]?.email_address;
     const name = `${first_name || ""} ${last_name || ""}`.trim();
-    const role = (public_metadata?.role as "cadet" | "admin" | "instructor") || "cadet"; // Default to cadet
+    const role = (public_metadata?.role as "cadet" | "admin") || "cadet"; // Default to cadet
 
     if (email) {
       await fetchMutation(api.users.upsertUser, {

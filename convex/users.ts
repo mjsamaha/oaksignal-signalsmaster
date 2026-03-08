@@ -6,7 +6,7 @@ export const upsertUser = mutation({
     clerkId: v.string(),
     email: v.string(),
     name: v.optional(v.string()),
-    role: v.union(v.literal("cadet"), v.literal("admin"), v.literal("instructor")),
+    role: v.union(v.literal("cadet"), v.literal("admin")),
   },
   handler: async (ctx, args) => {
     const existingUser = await ctx.db
