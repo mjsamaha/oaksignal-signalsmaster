@@ -236,6 +236,46 @@ async function getAttemptQuestions(
     .collect();
 }
 
+function canAccessResultRecord(
+  user: Doc<"users">,
+  result: Doc<"examResults">
+): boolean {
+  if (user.role === "admin") {
+    return true;
+  }
+  return result.userId === user._id;
+}
+
+function mapOfficialResultRecord(result: Doc<"examResults">) {
+  return {
+    examResultId: result._id,
+    examAttemptId: result.examAttemptId,
+    userId: result.userId,
+    immutable: result.immutable,
+    immutableAt: result.immutableAt,
+    certificateNumber: result.certificateNumber,
+    resultVersion: result.resultVersion,
+    userSnapshot: result.userSnapshot,
+    attemptNumber: result.attemptNumber,
+    startedAt: result.startedAt,
+    completedAt: result.completedAt,
+    totalQuestions: result.totalQuestions,
+    totalCorrect: result.totalCorrect,
+    scorePercent: result.scorePercent,
+    passThresholdPercent: result.passThresholdPercent,
+    passed: result.passed,
+    examModesUsed: result.examModesUsed,
+    modeStats: result.modeStats,
+    categoryStats: result.categoryStats,
+    flagDatabaseSnapshot: result.flagDatabaseSnapshot,
+    questionBreakdown: result.questionBreakdown,
+    recordChecksum: result.recordChecksum,
+    signatureAlgorithm: result.signatureAlgorithm,
+    signature: result.signature,
+    createdAt: result.createdAt,
+  };
+}
+
 function getCurrentQuestionIndex(questions: Doc<"examQuestions">[]): number | null {
   const sorted = [...questions].sort((a, b) => a.questionIndex - b.questionIndex);
   const next = sorted.find((question) => question.userAnswer === null);
@@ -1348,6 +1388,7 @@ export const submitExamAnswer = mutation({
 
       const examModesUsed = [...new Set(sortedQuestions.map((question) => question.mode))];
       const generationSnapshot = attempt.generationSnapshot;
+      const roleAtExam: "cadet" | "admin" = user.role === "admin" ? "admin" : "cadet";
       const certificateNumber = buildCertificateNumber({
         completedAt: submittedAt,
         attemptNumber: attempt.attemptNumber,
@@ -1364,7 +1405,7 @@ export const submitExamAnswer = mutation({
         userSnapshot: {
           userId: user._id,
           fullName: user.name?.trim() || user.email,
-          roleAtExam: user.role,
+          roleAtExam,
         },
         attemptNumber: attempt.attemptNumber,
         startedAt: attempt.startedAt,
@@ -1524,6 +1565,111 @@ export const getAttemptById = query({
       generationSnapshot: attempt.generationSnapshot ?? null,
       result: attempt.result ?? null,
     };
+  },
+});
+
+export const getMyOfficialResult = query({
+  args: {
+    examAttemptId: v.id("examAttempts"),
+  },
+  handler: async (ctx, args) => {
+    const user = await getAuthenticatedUser(ctx);
+    if (!user) {
+      return null;
+    }
+
+    const result = await ctx.db
+      .query("examResults")
+      .withIndex("by_attempt", (q) => q.eq("examAttemptId", args.examAttemptId))
+      .first();
+
+    if (!result) {
+      return null;
+    }
+
+    if (!canAccessResultRecord(user, result)) {
+      return null;
+    }
+
+    return mapOfficialResultRecord(result);
+  },
+});
+
+export const getMyOfficialResultsHistory = query({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const user = await getAuthenticatedUser(ctx);
+    if (!user) {
+      return null;
+    }
+
+    const limit = args.limit ?? 20;
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+      throw new Error("Limit must be an integer between 1 and 100");
+    }
+
+    if (user.role === "admin") {
+      const results = await ctx.db
+        .query("examResults")
+        .withIndex("by_completedAt")
+        .order("desc")
+        .take(limit);
+
+      return results.map((result) => ({
+        examResultId: result._id,
+        examAttemptId: result.examAttemptId,
+        userId: result.userId,
+        fullName: result.userSnapshot.fullName,
+        attemptNumber: result.attemptNumber,
+        completedAt: result.completedAt,
+        scorePercent: result.scorePercent,
+        passed: result.passed,
+        certificateNumber: result.certificateNumber,
+      }));
+    }
+
+    const ownResults = await ctx.db
+      .query("examResults")
+      .withIndex("by_user_completedAt", (q) => q.eq("userId", user._id))
+      .order("desc")
+      .take(limit);
+
+    return ownResults.map((result) => ({
+      examResultId: result._id,
+      examAttemptId: result.examAttemptId,
+      userId: result.userId,
+      fullName: result.userSnapshot.fullName,
+      attemptNumber: result.attemptNumber,
+      completedAt: result.completedAt,
+      scorePercent: result.scorePercent,
+      passed: result.passed,
+      certificateNumber: result.certificateNumber,
+    }));
+  },
+});
+
+export const getOfficialResultForAdminReview = query({
+  args: {
+    examResultId: v.id("examResults"),
+  },
+  handler: async (ctx, args) => {
+    const user = await getAuthenticatedUser(ctx);
+    if (!user) {
+      return null;
+    }
+
+    if (user.role !== "admin") {
+      return null;
+    }
+
+    const result = await ctx.db.get(args.examResultId);
+    if (!result) {
+      return null;
+    }
+
+    return mapOfficialResultRecord(result);
   },
 });
 

@@ -6,7 +6,7 @@ export default defineSchema({
     clerkId: v.string(),
     email: v.string(),
     name: v.optional(v.string()),
-    role: v.union(v.literal("cadet"), v.literal("admin"), v.literal("instructor")),
+    role: v.union(v.literal("cadet"), v.literal("admin")),
     rank: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -245,8 +245,7 @@ export default defineSchema({
       fullName: v.string(),
       roleAtExam: v.union(
         v.literal("cadet"),
-        v.literal("admin"),
-        v.literal("instructor")
+        v.literal("admin")
       ),
     }),
 
@@ -340,9 +339,7 @@ export default defineSchema({
     actorUserId: v.id("users"),
     actorRole: v.union(
       v.literal("cadet"),
-      v.literal("admin"),
-      v.literal("instructor"),
-      v.literal("auditor")
+      v.literal("admin")
     ),
     accessType: v.union(
       v.literal("result_read"),

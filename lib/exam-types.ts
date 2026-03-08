@@ -235,7 +235,7 @@ export interface ExamClientSecurityEventInput {
   metadata?: Record<string, unknown>
 }
 
-export type ResultAccessActorRole = "cadet" | "admin" | "instructor" | "auditor"
+export type ResultAccessActorRole = "cadet" | "admin"
 
 export type ResultAccessType =
   | "result_read"
@@ -271,7 +271,7 @@ export interface OfficialExamResult {
   userSnapshot: {
     userId: string
     fullName: string
-    roleAtExam: "cadet" | "admin" | "instructor"
+    roleAtExam: "cadet" | "admin"
   }
   attemptNumber: number
   startedAt: number

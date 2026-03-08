@@ -84,7 +84,7 @@ export type ExamAuditEventType =
   | "idle_warning_shown"
   | "idle_timeout_triggered";
 
-export type ResultAccessActorRole = "cadet" | "admin" | "instructor" | "auditor";
+export type ResultAccessActorRole = "cadet" | "admin";
 
 export type ResultAccessType =
   | "result_read"
@@ -119,7 +119,7 @@ export interface OfficialExamResultRecord {
   userSnapshot: {
     userId: Id<"users">;
     fullName: string;
-    roleAtExam: "cadet" | "admin" | "instructor";
+    roleAtExam: "cadet" | "admin";
   };
   attemptNumber: number;
   startedAt: number;

@@ -1,7 +1,7 @@
 import { OFFICIAL_EXAM_MIN_PRACTICE_SESSIONS } from "./exam_policy";
 
 interface ExamStartBlockersInput {
-  userRole: "cadet" | "admin" | "instructor";
+  userRole: "cadet" | "admin";
   totalQuestions: number;
   userPracticeSessions: number;
   hasOfficialAttempt: boolean;
