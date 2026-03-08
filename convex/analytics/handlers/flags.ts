@@ -4,6 +4,7 @@ import { getAuthenticatedUser } from "../services/auth";
 import { dateRangeCutoff } from "../services/dateRange";
 import { tallyFlagsFromSessions } from "../services/flagTally";
 import { getCompletedSessions } from "../services/sessions";
+import { getFlagLookupByIds } from "../services/flagLookup";
 
 export const getMostMissedFlags = query({
   args: {
@@ -37,25 +38,28 @@ export const getMostMissedFlags = query({
       })
       .slice(0, limit);
 
-    const enriched = await Promise.all(
-      sorted.map(async (item) => {
-        const flag = await ctx.db.get(item.flagId);
-        if (!flag) {
-          return null;
-        }
-
-        return {
-          flagId: flag._id,
-          flagKey: flag.key,
-          flagName: flag.name,
-          flagImagePath: flag.imagePath,
-          flagCategory: flag.category,
-          attempts: item.attempts,
-          misses: item.misses,
-          missRate: Math.round((item.misses / item.attempts) * 100),
-        };
-      })
+    const flagLookup = await getFlagLookupByIds(
+      ctx,
+      sorted.map((item) => item.flagId)
     );
+
+    const enriched = sorted.map((item) => {
+      const flag = flagLookup.get(item.flagId.toString());
+      if (!flag) {
+        return null;
+      }
+
+      return {
+        flagId: flag._id,
+        flagKey: flag.key,
+        flagName: flag.name,
+        flagImagePath: flag.imagePath,
+        flagCategory: flag.category,
+        attempts: item.attempts,
+        misses: item.misses,
+        missRate: Math.round((item.misses / item.attempts) * 100),
+      };
+    });
 
     return enriched.filter(Boolean) as NonNullable<(typeof enriched)[number]>[];
   },
@@ -86,23 +90,26 @@ export const getMasteryFlags = query({
       .sort((a, b) => b.attempts - a.attempts)
       .slice(0, limit);
 
-    const enriched = await Promise.all(
-      mastered.map(async (item) => {
-        const flag = await ctx.db.get(item.flagId);
-        if (!flag) {
-          return null;
-        }
-
-        return {
-          flagId: flag._id,
-          flagKey: flag.key,
-          flagName: flag.name,
-          flagImagePath: flag.imagePath,
-          flagCategory: flag.category,
-          attempts: item.attempts,
-        };
-      })
+    const flagLookup = await getFlagLookupByIds(
+      ctx,
+      mastered.map((item) => item.flagId)
     );
+
+    const enriched = mastered.map((item) => {
+      const flag = flagLookup.get(item.flagId.toString());
+      if (!flag) {
+        return null;
+      }
+
+      return {
+        flagId: flag._id,
+        flagKey: flag.key,
+        flagName: flag.name,
+        flagImagePath: flag.imagePath,
+        flagCategory: flag.category,
+        attempts: item.attempts,
+      };
+    });
 
     return enriched.filter(Boolean) as NonNullable<(typeof enriched)[number]>[];
   },

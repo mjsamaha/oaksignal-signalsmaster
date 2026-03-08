@@ -14,6 +14,7 @@ import type * as analytics_handlers_sessions from "../analytics/handlers/session
 import type * as analytics_handlers_summary from "../analytics/handlers/summary.js";
 import type * as analytics_services_auth from "../analytics/services/auth.js";
 import type * as analytics_services_dateRange from "../analytics/services/dateRange.js";
+import type * as analytics_services_flagLookup from "../analytics/services/flagLookup.js";
 import type * as analytics_services_flagTally from "../analytics/services/flagTally.js";
 import type * as analytics_services_sessions from "../analytics/services/sessions.js";
 import type * as exams from "../exams.js";
@@ -73,6 +74,7 @@ declare const fullApi: ApiFromModules<{
   "analytics/handlers/summary": typeof analytics_handlers_summary;
   "analytics/services/auth": typeof analytics_services_auth;
   "analytics/services/dateRange": typeof analytics_services_dateRange;
+  "analytics/services/flagLookup": typeof analytics_services_flagLookup;
   "analytics/services/flagTally": typeof analytics_services_flagTally;
   "analytics/services/sessions": typeof analytics_services_sessions;
   exams: typeof exams;

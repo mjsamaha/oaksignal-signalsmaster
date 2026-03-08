@@ -3,6 +3,7 @@ import { query } from "../../_generated/server";
 import { dateRangeCutoff } from "../services/dateRange";
 import { getAuthenticatedUser } from "../services/auth";
 import { getCompletedSessions } from "../services/sessions";
+import { getFlagLookupByIds } from "../services/flagLookup";
 
 export const getSessionResults = query({
   args: {
@@ -23,9 +24,14 @@ export const getSessionResults = query({
       return null;
     }
 
+    const flagLookup = await getFlagLookupByIds(
+      ctx,
+      session.questions.map((question) => question.flagId)
+    );
+
     const enrichedQuestions = await Promise.all(
       session.questions.map(async (question) => {
-        const flag = await ctx.db.get(question.flagId);
+        const flag = flagLookup.get(question.flagId.toString());
         if (!flag) {
           return null;
         }
@@ -97,10 +103,7 @@ export const getRecentSessions = query({
 
     const limit = args.limit ?? 5;
 
-    const sessions = (await getCompletedSessions(ctx, user._id, "desc")).slice(
-      0,
-      limit
-    );
+    const sessions = await getCompletedSessions(ctx, user._id, "desc", limit);
 
     return sessions.map((session) => ({
       sessionId: session._id,

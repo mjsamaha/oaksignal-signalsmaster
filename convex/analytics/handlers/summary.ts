@@ -4,6 +4,7 @@ import { getAuthenticatedUser } from "../services/auth";
 import { dateRangeCutoff } from "../services/dateRange";
 import { tallyFlagsFromSessions } from "../services/flagTally";
 import { getCompletedSessions } from "../services/sessions";
+import { getFlagLookupByIds } from "../services/flagLookup";
 
 export const getAnalyticsSummary = query({
   args: {
@@ -161,28 +162,24 @@ export const getAnalyticsSummary = query({
     const flagTallies = tallyFlagsFromSessions(sessions, 0);
     const categoryTally = new Map<string, { attempts: number; correct: number }>();
 
-    const talliesWithFlags = await Promise.all(
-      flagTallies.map(async (row) => {
-        const flag = await ctx.db.get(row.flagId);
-        if (!flag) {
-          return null;
-        }
-        return { category: flag.category, ...row };
-      })
+    const flagLookup = await getFlagLookupByIds(
+      ctx,
+      flagTallies.map((row) => row.flagId)
     );
 
-    for (const row of talliesWithFlags) {
-      if (!row) {
+    for (const row of flagTallies) {
+      const flag = flagLookup.get(row.flagId.toString());
+      if (!flag) {
         continue;
       }
 
-      const existing = categoryTally.get(row.category) ?? {
+      const existing = categoryTally.get(flag.category) ?? {
         attempts: 0,
         correct: 0,
       };
       existing.attempts += row.attempts;
       existing.correct += row.attempts - row.misses;
-      categoryTally.set(row.category, existing);
+      categoryTally.set(flag.category, existing);
     }
 
     const categoryBreakdown = Array.from(categoryTally.entries()).map(
