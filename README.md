@@ -125,6 +125,21 @@ Pre-push helper flags:
 *   `PUSH_CHECKS_VERBOSE=1`: Stream full command output live.
 *   `PUSH_CHECKS_NO_SPINNER=1`: Disable spinner animation for non-interactive logs.
 
+### Manual Vercel Redeploy (GitHub Actions)
+
+Use the `Vercel Redeploy` workflow for an on-demand redeploy without code changes.
+
+Required repository secrets:
+* `VERCEL_DEPLOY_HOOK_URL_PRODUCTION`
+* `VERCEL_DEPLOY_HOOK_URL_PREVIEW`
+
+How to run:
+1. Open GitHub -> `Actions` -> `Vercel Redeploy`.
+2. Select `Run workflow`.
+3. Choose the `environment` (`production` or `preview`).
+4. Optionally add a `reason`.
+5. Run and monitor logs for the hook response.
+
 ### Official Exam Security Ops Notes
 
 * `EXAM_SESSION_TOKEN_SECRET` is mandatory for starting official exam attempts. Rotate it with care because existing in-progress exam session tokens will no longer validate.
