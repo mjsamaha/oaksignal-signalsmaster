@@ -3,6 +3,8 @@ import { NextResponse } from "next/server"; // Need this for redirects
 import { verifyAdminAccess } from "@/lib/auth/admin-guard";
 import { logAdminAccessAttempt } from "@/lib/audit/admin-access";
 
+const ALLOWED_EMAIL_DOMAIN = process.env.ALLOWED_SIGNIN_EMAIL_DOMAIN?.trim().toLowerCase();
+
 const isPublicRoute = createRouteMatcher([
   "/",
   "/login(.*)",
@@ -22,6 +24,27 @@ const isAuthRoute = createRouteMatcher([
 const isAdminPageRoute = createRouteMatcher(["/admin(.*)"]);
 const isAdminApiRoute = createRouteMatcher(["/api/admin(.*)"]);
 
+function extractEmailFromSessionClaims(sessionClaims: unknown): string | null {
+  if (!sessionClaims || typeof sessionClaims !== "object") {
+    return null;
+  }
+
+  const claims = sessionClaims as Record<string, unknown>;
+  const candidates = [
+    claims.email,
+    claims.email_address,
+    claims.primary_email_address,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.includes("@")) {
+      return candidate.toLowerCase();
+    }
+  }
+
+  return null;
+}
+
 function jsonAccessError(status: number, code: string, message: string): NextResponse {
   return NextResponse.json(
     {
@@ -36,7 +59,29 @@ function jsonAccessError(status: number, code: string, message: string): NextRes
 }
 
 export default clerkMiddleware(async (auth, request) => {
-  const { userId, getToken } = await auth();
+  const authData = await auth();
+  const { userId, getToken } = authData;
+  const sessionClaims = (authData as { sessionClaims?: unknown }).sessionClaims;
+
+  if (userId) {
+    const email = extractEmailFromSessionClaims(sessionClaims);
+    const domainSuffix = ALLOWED_EMAIL_DOMAIN ? `@${ALLOWED_EMAIL_DOMAIN}` : null;
+    const isAllowedDomain = !!email && !!domainSuffix && email.endsWith(domainSuffix);
+    const isForbiddenRoute = request.nextUrl.pathname === "/forbidden";
+    const isApiRoute = request.nextUrl.pathname.startsWith("/api/");
+
+    if (!isAllowedDomain && !isForbiddenRoute) {
+      if (isApiRoute) {
+        return jsonAccessError(
+          403,
+          "FORBIDDEN_DOMAIN",
+          "Your domain is not accepted."
+        );
+      }
+
+      return NextResponse.redirect(new URL("/forbidden?reason=domain", request.url));
+    }
+  }
 
   // 1. If user is logged in and trying to access login/signup, redirect to dashboard
   if (userId && isAuthRoute(request)) {

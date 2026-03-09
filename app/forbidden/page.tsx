@@ -4,7 +4,15 @@ import { ShieldX, ArrowLeft, Home } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
-export default function ForbiddenPage() {
+type ForbiddenPageProps = {
+  searchParams?: {
+    reason?: string
+  }
+}
+
+export default function ForbiddenPage({ searchParams }: ForbiddenPageProps) {
+  const isDomainRejected = searchParams?.reason === "domain"
+
   return (
     <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-10">
       <Card className="w-full max-w-2xl border-border/70 shadow-sm">
@@ -14,7 +22,9 @@ export default function ForbiddenPage() {
           </div>
           <CardTitle className="text-3xl tracking-tight">403 Forbidden</CardTitle>
           <CardDescription className="text-base">
-            You are authenticated, but your account does not have permission to access this admin resource.
+            {isDomainRejected
+              ? "Your domain is not accepted."
+              : "You are authenticated, but your account does not have permission to access this admin resource."}
           </CardDescription>
         </CardHeader>
 
