@@ -5,13 +5,14 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 type ForbiddenPageProps = {
-  searchParams?: {
+  searchParams?: Promise<{
     reason?: string
-  }
+  }>
 }
 
-export default function ForbiddenPage({ searchParams }: ForbiddenPageProps) {
-  const isDomainRejected = searchParams?.reason === "domain"
+export default async function ForbiddenPage({ searchParams }: ForbiddenPageProps) {
+  const resolvedSearchParams = await searchParams
+  const isDomainRejected = resolvedSearchParams?.reason === "domain"
 
   return (
     <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-10">

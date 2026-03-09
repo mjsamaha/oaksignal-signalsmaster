@@ -20,7 +20,7 @@ export default function SignUpPage() {
 
   return (
     <div className="flex flex-1 items-center justify-center py-12">
-      <SignUp routing="path" path="/sign-up" forceRedirectUrl="/dashboard" />
+      <SignUp routing="path" path="/sign-up" forceRedirectUrl="/auth/success" />
     </div>
   );
 }

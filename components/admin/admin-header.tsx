@@ -85,7 +85,7 @@ export function AdminHeader() {
               <span className="text-xs uppercase tracking-wider text-muted-foreground">{user.role}</span>
             </div>
           ) : null}
-          {clerkEnabled ? <UserButton afterSignOutUrl="/" /> : null}
+          {clerkEnabled ? <UserButton afterSignOutUrl="/logout" /> : null}
         </div>
       </div>
     </header>

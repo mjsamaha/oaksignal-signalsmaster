@@ -16,6 +16,12 @@ export default function ConvexClientProvider({
     () => (convexUrl ? new ConvexReactClient(convexUrl) : null),
     [convexUrl]
   );
+  const redirectConfig = {
+    signInForceRedirectUrl: "/auth/success",
+    signUpForceRedirectUrl: "/auth/success",
+    signInFallbackRedirectUrl: "/auth/success",
+    signUpFallbackRedirectUrl: "/auth/success",
+  };
 
   if (!clerkPublishableKey) {
     return <>{children}</>;
@@ -23,14 +29,14 @@ export default function ConvexClientProvider({
 
   if (!convex) {
     return (
-      <ClerkProvider publishableKey={clerkPublishableKey}>
+      <ClerkProvider publishableKey={clerkPublishableKey} {...redirectConfig}>
         {children}
       </ClerkProvider>
     );
   }
 
   return (
-    <ClerkProvider publishableKey={clerkPublishableKey}>
+    <ClerkProvider publishableKey={clerkPublishableKey} {...redirectConfig}>
       <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
         {children}
       </ConvexProviderWithClerk>

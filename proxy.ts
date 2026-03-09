@@ -1,4 +1,4 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { clerkClient, clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server"; // Need this for redirects
 import { verifyAdminAccess } from "@/lib/auth/admin-guard";
 import { logAdminAccessAttempt } from "@/lib/audit/admin-access";
@@ -9,6 +9,7 @@ const isPublicRoute = createRouteMatcher([
   "/",
   "/login(.*)",
   "/sign-up(.*)",
+  "/logout",
   "/faq(.*)", 
   "/legal(.*)",
   "/forbidden",
@@ -34,6 +35,9 @@ function extractEmailFromSessionClaims(sessionClaims: unknown): string | null {
     claims.email,
     claims.email_address,
     claims.primary_email_address,
+    claims.preferred_username,
+    claims.upn,
+    claims.unique_name,
   ];
 
   for (const candidate of candidates) {
@@ -43,6 +47,24 @@ function extractEmailFromSessionClaims(sessionClaims: unknown): string | null {
   }
 
   return null;
+}
+
+async function resolveUserEmail(userId: string, sessionClaims: unknown): Promise<string | null> {
+  const claimEmail = extractEmailFromSessionClaims(sessionClaims);
+  if (claimEmail) {
+    return claimEmail;
+  }
+
+  try {
+    const client = await clerkClient();
+    const user = await client.users.getUser(userId);
+    const primaryEmailId = user.primaryEmailAddressId;
+    const primaryEmail = user.emailAddresses.find((email) => email.id === primaryEmailId);
+    const fallbackEmail = primaryEmail?.emailAddress ?? user.emailAddresses[0]?.emailAddress;
+    return fallbackEmail ? fallbackEmail.toLowerCase() : null;
+  } catch {
+    return null;
+  }
 }
 
 function jsonAccessError(status: number, code: string, message: string): NextResponse {
@@ -62,15 +84,17 @@ export default clerkMiddleware(async (auth, request) => {
   const authData = await auth();
   const { userId, getToken } = authData;
   const sessionClaims = (authData as { sessionClaims?: unknown }).sessionClaims;
+  let isAllowedDomainUser = true;
 
-  if (userId) {
-    const email = extractEmailFromSessionClaims(sessionClaims);
-    const domainSuffix = ALLOWED_EMAIL_DOMAIN ? `@${ALLOWED_EMAIL_DOMAIN}` : null;
-    const isAllowedDomain = !!email && !!domainSuffix && email.endsWith(domainSuffix);
+  if (userId && ALLOWED_EMAIL_DOMAIN) {
+    const email = await resolveUserEmail(userId, sessionClaims);
+    const domainSuffix = `@${ALLOWED_EMAIL_DOMAIN}`;
+    isAllowedDomainUser = !!email && email.endsWith(domainSuffix);
     const isForbiddenRoute = request.nextUrl.pathname === "/forbidden";
     const isApiRoute = request.nextUrl.pathname.startsWith("/api/");
+    const isPublic = isPublicRoute(request);
 
-    if (!isAllowedDomain && !isForbiddenRoute) {
+    if (!isAllowedDomainUser && !isForbiddenRoute && !isPublic) {
       if (isApiRoute) {
         return jsonAccessError(
           403,
@@ -84,7 +108,7 @@ export default clerkMiddleware(async (auth, request) => {
   }
 
   // 1. If user is logged in and trying to access login/signup, redirect to dashboard
-  if (userId && isAuthRoute(request)) {
+  if (userId && isAllowedDomainUser && isAuthRoute(request)) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 

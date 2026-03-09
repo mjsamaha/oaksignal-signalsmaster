@@ -94,7 +94,7 @@ export function SiteHeader() {
                     Dashboard
                   </Button>
                 </Link>
-                <UserButton />
+                <UserButton afterSignOutUrl="/logout" />
               </SignedIn>
             </>
           ) : (
@@ -169,7 +169,7 @@ export function SiteHeader() {
                       </Button>
                     </Link>
                     <div className="flex items-center justify-center py-2">
-                      <UserButton />
+                      <UserButton afterSignOutUrl="/logout" />
                     </div>
                   </SignedIn>
                 </>

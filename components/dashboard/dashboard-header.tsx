@@ -91,7 +91,7 @@ export function DashboardHeader() {
                 </span>
               </div>
             ) : null}
-            {clerkEnabled ? <UserButton afterSignOutUrl="/" /> : null}
+            {clerkEnabled ? <UserButton afterSignOutUrl="/logout" /> : null}
           </div>
         </div>
       </div>
